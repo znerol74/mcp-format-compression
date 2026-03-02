@@ -1,0 +1,12 @@
+[submodule "MCPToolBenchPP"]
+	path = MCPToolBenchPP
+	url = git@github.com:znerol74/MCPToolBenchPP.git
+[submodule "MCP-Universe"]
+	path = MCP-Universe
+	url = git@github.com:znerol74/MCP-Universe.git
+[submodule "toon-python"]
+	path = toon-python
+	url = https://github.com/toon-format/toon-python.git
+[submodule "tron-python"]
+	path = tron-python
+	url = git@github.com:znerol74/tron-python.git
