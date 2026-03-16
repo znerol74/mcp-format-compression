@@ -10,3 +10,6 @@
 [submodule "tron-python"]
 	path = tron-python
 	url = git@github.com:znerol74/tron-python.git
+[submodule "gorilla"]
+	path = gorilla
+	url = git@github.com:znerol74/gorilla.git
