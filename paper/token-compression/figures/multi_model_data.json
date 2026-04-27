@@ -1,0 +1,132 @@
+{
+  "Qwen3-32B": {
+    "TOON": {
+      "BPP": {
+        "tok_pct": -44.47,
+        "acc_pct": -34.34,
+        "acc_abs_json": 0.3436,
+        "acc_abs": 0.2256,
+        "tokens_json": 35030153,
+        "tokens": 19453924
+      },
+      "UNI": {
+        "tok_pct": 11.9,
+        "acc_pct": -69.57,
+        "acc_abs_json": 0.0996,
+        "acc_abs": 0.0303,
+        "tokens_json": 37594383,
+        "tokens": 42068557
+      },
+      "BFCL": {
+        "tok_pct": 10.74,
+        "acc_pct": -2.9,
+        "acc_abs_json": 0.2514,
+        "acc_abs": 0.2441,
+        "tokens_json": 1038776,
+        "tokens": 1150354
+      }
+    },
+    "TRON": {
+      "BPP": {
+        "tok_pct": -60.69,
+        "acc_pct": -7.19,
+        "acc_abs_json": 0.3436,
+        "acc_abs": 0.3189,
+        "tokens_json": 35030153,
+        "tokens": 13770991
+      },
+      "UNI": {
+        "tok_pct": -33.32,
+        "acc_pct": 25.54,
+        "acc_abs_json": 0.0996,
+        "acc_abs": 0.125,
+        "tokens_json": 37594383,
+        "tokens": 25068509
+      },
+      "BFCL": {
+        "tok_pct": 7.35,
+        "acc_pct": -33.65,
+        "acc_abs_json": 0.2514,
+        "acc_abs": 0.1668,
+        "tokens_json": 1038776,
+        "tokens": 1115127
+      }
+    }
+  },
+  "Qwen3-30B-Instruct": {
+    "TOON": {
+      "UNI": {
+        "tok_pct": 13.03,
+        "acc_pct": -50.0,
+        "acc_abs_json": 0.0341,
+        "acc_abs": 0.017,
+        "tokens_json": 5568641,
+        "tokens": 6294466
+      },
+      "BFCL": {
+        "tok_pct": 5.41,
+        "acc_pct": -7.66,
+        "acc_abs_json": 0.1188,
+        "acc_abs": 0.1097,
+        "tokens_json": 716023,
+        "tokens": 754777
+      },
+      "STB": {
+        "tok_pct": -35.85,
+        "acc_pct": 59.82,
+        "acc_abs_json": 0.3394,
+        "acc_abs": 0.5424,
+        "tokens_json": 5084707,
+        "tokens": 3261797
+      }
+    },
+    "TRON": {
+      "UNI": {
+        "tok_pct": -1.76,
+        "acc_pct": 50.0,
+        "acc_abs_json": 0.0341,
+        "acc_abs": 0.0511,
+        "tokens_json": 5568641,
+        "tokens": 5470388
+      },
+      "BFCL": {
+        "tok_pct": 2.56,
+        "acc_pct": -14.31,
+        "acc_abs_json": 0.1188,
+        "acc_abs": 0.1018,
+        "tokens_json": 716023,
+        "tokens": 734320
+      },
+      "STB": {
+        "tok_pct": -35.76,
+        "acc_pct": 76.49,
+        "acc_abs_json": 0.3394,
+        "acc_abs": 0.599,
+        "tokens_json": 5084707,
+        "tokens": 3266468
+      }
+    }
+  },
+  "Qwen3.5-Next": {
+    "TOON": {
+      "STB": {
+        "tok_pct": 52.44,
+        "acc_pct": 0.96,
+        "acc_abs_json": 0.3172,
+        "acc_abs": 0.3202,
+        "tokens_json": 2493429,
+        "tokens": 3801077
+      }
+    },
+    "TRON": {
+      "STB": {
+        "tok_pct": -26.88,
+        "acc_pct": -23.89,
+        "acc_abs_json": 0.3172,
+        "acc_abs": 0.2414,
+        "tokens_json": 2493429,
+        "tokens": 1823294
+      }
+    }
+  }
+}

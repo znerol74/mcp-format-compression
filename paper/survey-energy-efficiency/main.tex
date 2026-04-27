@@ -1,0 +1,179 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+%% Welcome to Overleaf!
+%% If this is your first time using LaTeX, it might be worth going through this brief presentation:
+%% https://www.overleaf.com/latex/learn/free-online-introduction-to-latex-part-1
+
+%% Researchers have been using LaTeX for decades to typeset their papers, producing beautiful, crisp documents in the process. By learning LaTeX, you are effectively following in their footsteps, and learning a highly valuable skill!
+
+%% The \usepackage commands below can be thought of as analogous to importing libraries into Python, for instance. We've pre-formatted this for you, so you can skip right ahead to the title below.
+
+%% Language and font encodings
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage[T1]{fontenc}
+
+%% Sets page size and margins
+\usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+\newcounter{hucounter}
+\DeclareRobustCommand{\hussain}[1]{\textbf{\color{red}/* #1 (hussain) */}\stepcounter{hucounter}\typeout{LaTeX Warning: hussain comment \thehucounter: #1 (line \the\inputlineno)}}
+
+%% Useful packages
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage{natbib}
+\bibliographystyle{unsrt}
+%% Title
+\title{
+		\usefont{OT1}{bch}{b}{n}
+		\normalfont \normalsize \textsc{STEM Fellowship Big Data Challenge 2020} \\ [10pt]
+		\huge Project Title \\
+}
+\selectlanguage{english}
+\usepackage{authblk}
+\author[1]{Lorenz Kutschka}
+\author[1]{Author Two}
+\author[1]{Author Three}
+\author[2]{Author Four}
+\affil[1]{High School 1}
+\affil[2]{High School 2}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+asd
+\end{abstract} \\ 
+\\ 
+{\textbf{Keywords} \\
+pick, 3-5, good, keywords}
+
+\section{Introduction}
+\label{sec:introduction}
+The rapid rise of Agentic Artificial Intelligence marks a turning point where energy consumption is no longer a side effect of model inference, but a defining constraint of intelligent system design. This shift is driven by the evolution of Artificial Intelligence (AI) from passive to proactive AI systems, characterized by an expansion of the model's environment, to include active integration with external systems and real-time resources. While traditional AI processes are limited to trained knowledge and static input response cycles, Agentic systems are using external data in an iterative thinking process by using methods like reasoning, memory, and strategic planning to solve multi-step task \citep{Xu_2026, Nisa_Shirazi_Saip_Pozi_2025}. However, this shift toward iterative execution significantly multiplies Large Language Model (LLM) inference cycles and therefore computational demand. To supply this rising demand multi sized soccer field computing centers are being build to run Agentic AI's brains. However, the computational footprint of Agentic AI systems cannot be attributed to Large Language Models alone. While prior research \citep{Jegham_Abdelatti_Elmoubarki_Hendawi_2025, Oviedo_Kazhamiaka_Choukse_Kim_Luers_Nakagawa_Bianchini_Ferres_2025a} has primarily focused on the energy consumption of LLM inference, Agentic AI systems comprise additional components that significantly contribute to overall resource usage. Central to this analysis is the "Agentic Multiplier", an effect where energy consumption scales non-linearly due to recursive reasoning loops, tool-calling iterations via protocols like MCP, and multi-stage memory retrieval cycles. By evaluating the critical trade-off between system reliability and environmental sustainability, this work analyzes how advancements in token density and orchestration reduce operational overhead. Shifting from "brute-force" reasoning toward targeted token budgets allows systems to achieve reliable outcomes while minimizing the total computational footprint. Furthermore, we examine contemporary research approaches and frameworks, explaining how these specific methodologies contribute to reducing the environmental impact of autonomous agents.
+\\\\
+With this work, it is possible to identify the specific architectural bottlenecks that drive carbon footprints in autonomous agents. This allows to design optimized strategies such as high-density data formatting and selective reasoning budgets to align operational performance with sustainability goals.
+
+\section{Technical Background}
+Agentic AI is becoming increasingly complex as systems evolve to handle more challenging  operational demands. The framework consists of core intelligence and decision making in the back-end by using 4 stages, Data, Analysis, Execution, and Adaptation. Within the stages the agent collects data to understand users instructions, validates input, accesses memory, performs decision verification and detects possible errors. Based on this workflows a worked out execution plan is then autonomously executed in the interacting system. A user does not have to give directions and is only used for feedback iterations, which is used for future decision making \citep{Nisa_Shirazi_Saip_Pozi_2025}. Furthermore current systems are moving toward multi-agent systems to have one agent for specific roles like processing different inputs like text, images and audio or handling different external systems \citep{Acharya_Kuppan_Divya_2025, Nisa_Shirazi_Saip_Pozi_2025}. Diverse operational needs bring several distinct architectural patterns in the world of Agentic AI. These range from reactive systems, which efficiently handle predefined, step-by-step tasks without memory, to proactive agents that anticipate needs by analyzing environmental patterns to optimize outcomes before a user even provides instructions. More advanced designs incorporate limited memory to improve contextual understanding by analyzing previous decision paths. Alternatively, model-based agents simulate potential outcomes before taking action, while this significantly increases resource demands, it allows for more accurate planning and is highly advantageous in environments where data collection is costly or limited \citep{Nisa_Shirazi_Saip_Pozi_2025}. Furthermore Reinforcement Learning (RL) is used in modern Agentic AI systems to optimize the agents behavior by learning when to gather information and when to act \citep{Xu_2026, Acharya_Kuppan_Divya_2025}. These architectures are powered by the following key functional components and methods.
+
+\subsection{Core Intelligence: The LLM Layer}
+\label{sec:background_llms}
+LLMs are advanced AI systems trained on massive amounts of text data. Their goal is to first understand a human language task or question and second generate an output or response. In an Agentic workflow, they act as the central brain. It retrieves information from input and environment and processes them to determine the next steps required to accomplish the main task. Since text data is the basis for its reasoning and planning, all other components must provide their context in the same format. This processing is measured in tokens, which are the basic units of text such as words or character fragments that the model reads. LLMs have a limited context window, representing the maximum number of tokens they can process at once. Reaching the context window limit can cause hallucinations, as important facts are exceeding it and therefore the LLM is not aware of them.
+\paragraph{Hallucination}
+
+LLM hallucination occurs when the generated output seems to be coherent and reasonable but in fact is incorrect or newly created information rather than based true understanding. This can happen as models predict the likely next word in a sequence based on their training data, which lacks on up-to-date or even contains wrong information.
+
+\subsection{Functional Extensions: Tool Integration}
+All components that a LLM can perceive or influence in their environment are tools. Such tools are defined and described to the LLM which includes the function's purpose, its name, and the parameter it accepts. Based on the users input, the query, and the textual information about its available environment, the LLM decides if and what tools should be called to fulfill the request. For that a structured output defines the executions. The results are then presented to the LLM with a new request which forms a loop until there is no need for further tool usage. With that the system is not limited to the LLM trained knowledge as it can receive additional via a web search to gain real-time knowledge or even more complex ones like a database or enterprise software where the agent also can fulfill changes. Protocols are used to connect and standardize the interaction between LLMs and external systems. 
+
+\paragraph{MCP}
+MCP is an open-source standard for connecting LLMs to external tool, database or system, analogous to how HTTP standardized web communication. It utilizes a client-server architecture:
+
+\begin{itemize}
+    \item MCP Servers: Host and execute specific tools or data resources.
+    \item MCP Clients: LLM-based applications that discover and trigger these tools to fulfill user requests.
+\end{itemize}
+
+This interaction is managed via a Data Layer (JSON-RPC), which handles the structured exchange of tools and prompts, and a Transport Layer, which defines the communication mechanism. This standardization reduces engineering overhead while providing a secure, predictable environment for Agentic operations \citep{mcp2026}. 
+
+\subsection{Information Retention: Memory Systems}
+Agents require different kind of memory to operate efficiently like humans. Short-term and long-term are the main systems to retain and utilize information from past interactions, observations, learning experiences and additional domain knowledge and help the agent in their decision making process.
+\paragraph{Short-Term Memory} 
+LLMs limited context window is extended with a memory containing recent information an agent can directly access. It contains messages like agent replies, tool usage results, and agent reflections from the current process of solving a main goal. However this information is lost when the session is finished. To achieve permanent storage a persistent memory is used.
+\paragraph{Long-Term Memory}
+Data is mainly stored outside of the direct environment of an agent in databases, knowledge graphs or vector storage. With that the information can used across different tasks or Agents. A well-established practice is the so-called Retrieval-Augmented Generation (RAG) systems, that is using such a storage whereas content is transformed into the vector space to enable efficient similarity-based retrieval. 
+
+\subsection{Cognitive Logic: Reasoning and Planning}
+\label{sec:background_reasoning}
+Reasoning is the process of a structured thinking to solve more complex tasks. Chain-of-Thought (CoT) Prompting, Test-Time Scaling, and Reinforcement Learning (RL) are advanced techniques in AI Reasoning that made a historical progress in increasing LLM performance to a new level. With CoT Prompting AI breaks down queries into sequential reasoning steps to reach the final solution iteratively. RL enables the system to learn through trial-and-error interactions to adapt strategies based on feedback. Lastly, Test-Time Scaling gives the process needed more computational power during the inference phase to improve the accuracy of LLMs. These techniques allow them to anticipate outcomes, prioritize steps, and dynamically change strategies, which is essential for unpredictable and complex environments with multi-objective tasks.
+
+
+
+
+
+
+\section{Assesing Energy Demands}
+
+\subsection{System Trade-offs and Alignment}
+While Agentic AI is advancing rapidly, its development introduces significant sustainability concerns and new layers of complexity. This complexity often leads to unpredictable behaviors, or even system failures. A well-engineered system does not simply rely on the best performing LLM, instead it requires a trade-off between reliability, cost and latency \citep{Xu_2026}. The primary challenge lies in system alignment, to ensure that multiple specialized components not only perform their individual tasks effectively but also integrate seamlessly to maintain the integrity of the overall workflow.
+
+\subsection{Baseline Inference Metrics}
+LLMs are the main energy consumers in Agentic AI, whereas inference latency is the primary performance factor. The energy use of a request to an LLM is driven by several factors: GPU nodes, input and output tokens, token throughput per second (TPS) based on the model architecture, and the power usage effectiveness (PUE) of the AI data center. Using these factors, the power consumption of an average ChatGPT query which comes to roughly 500-600 output tokens is calculated at 0.34 Wh \citep{Oviedo_Kazhamiaka_Choukse_Kim_Luers_Nakagawa_Bianchini_Ferres_2025}. While this is not an immense number on its own, it becomes when looking at the 2.5 billion queries ChatGPT receives per day. In total, this is equal to charging 70 million phones.
+
+\subsection{The Reasoning Multiplier}
+Token usage and energy consumption heavily increases with Agentic AI systems. Technologies like CoT and Reinforcement Learning are dividing a main task into several steps and use multiple iterations to imitate to process information like the human brain by a thinking process \citep{Han_Wang_Fang_Zhao_Ma_Chen_2025}. Test-time scaling enables reasoning capabilities by allocating additional computational resources during inference. This allows the model to generate a higher volume of tokens to improve accuracy. This approach is explored in detail by \cite{Jin_Wei_Brooks_2025}, who define the strategy as Test-Time Compute (TTC). Their research demonstrates that TTC can achieve superior accuracy-energy trade-offs. For instance, a 1.5B model using reasoning tokens (RT) can achieve a 34.3\% accuracy boost in mathematics. This allows it to reach performance levels comparable to much larger models while maintaining significantly lower total energy consumption than those larger models. However, the absolute energy cost for a single model increases substantially when reasoning is activated. In coding tasks, the use of reasoning tokens results in an average 10.4x energy multiplier due to the massive increase in generated output.
+
+\subsection{Power Overhead of Tool Integration}
+Measuring energy consumption of executed Tool is not straight forward as those are mostly connected via protocols like MCP. Therefore systems are external of Agentic AI frameworks and with that hard to measure within AI frameworks. Tool usage is an iterative ongoing process until the given task is solved. First the LLM retrieves the documentation of all available tools, the so called MCP Schema, to understand what tools are available and how to use them. Second the LLM decides if one or more tools need to be called and what parameters are handed. Lastly the results of all called tools are processed to evaluate the successful call. Then the the tool call need to be done again in a different way or it even was useless as it returns the wrong results. This usage directly increases inference costs, since each invocation produces additional tokens that the LLM must process. Furthermore data retrieved from the MCP is typically structured in JSON format, which is character- and therefore token-intensive. This quickly fills the model’s context window and increases operational costs. As discussed in Section \ref{sec:background_llms}, this limitation can cause LLMs to hallucinate when they are unable to capture the full relevant context, leading to wrong tool calls and additional iterations.
+
+\section{Reducing Energy per Token}
+
+Those large systems are high in computing demand and therefore consume a lot of energy resources. Research \citep{Yu_Huang_Wang_Li_Zhang_Han_Wang_Zeng_Huang_Lau_2025} shows, that energy consumptions scales linear with tokens consumed. Which means reducing token in- and output of an inferenced LLM would risen the sustainable factor. Reducing the token number also actually increased the understanding of the data by the LLM as JSON can be noisy. Following methods are used in practice to make AI Green:
+
+\begin{itemize}
+    \item \textbf{Model distillation} can achieve a 5--10$\times$ reduction in energy consumption, as smaller distilled models have been shown to achieve performance comparable to large foundation models. Distillation replaces a large model with one or more smaller models, often trading slightly longer inference time for substantially reduced computational cost \citep{Oviedo_Kazhamiaka_Choukse_Kim_Luers_Nakagawa_Bianchini_Ferres_2025}.
+
+    \item \textbf{Low-bit quantization} reduces model size, inference latency, and computational requirements by representing weights and activations with fewer bits. This technique can reduce energy consumption by up to 70\% without losing model performance or accuracy \citep{Husom_Goknil_Astekin_Shar_Kåsen_Sen_Mithassel_Soylu_2025, Wang_Ma_Dong_Huang_Wang_Ma_Yang_Wang_Wu_Wei_2023, Husom_Goknil_Astekin_Shar_KÃ¥sen_Sen_Mithassel_Soylu_2025}.
+
+    \item \textbf{Mixture-of-Experts (MoE)} architectures reduce inference computation by activating only a subset of model parameters per token, leading to significantly lower energy usage compared to equivalent dense models \citep{Oviedo_Kazhamiaka_Choukse_Kim_Luers_Nakagawa_Bianchini_Ferres_2025}.
+
+    \item \textbf{Optimized model deployment strategies}, such as batching, caching, and efficient request scheduling, can yield 1.5--5$\times$ improvements in energy efficiency \citep{Oviedo_Kazhamiaka_Choukse_Kim_Luers_Nakagawa_Bianchini_Ferres_2025}.
+
+    \item \textbf{Hardware and data center optimizations}, including specialized accelerators, improved cooling systems, and energy-aware workload placement, can further improve efficiency by 1.5--2.5$\times$ \citep{Oviedo_Kazhamiaka_Choukse_Kim_Luers_Nakagawa_Bianchini_Ferres_2025}. Furthermore, in the work of \citep{Jegham_Abdelatti_Elmoubarki_Hendawi_2025} it is proved that hardware choises are directly effecting the energy consumption. In this case the same models are hosted once on DeepSeek’s own servers and once on the Azure cloud which brought a reduction in energy consumption over 85\%. This gap highlights that hardware and data center efficiency, not model design alone, drives real-world energy use.
+\end{itemize}
+
+\subsection{Operational Efficiency}
+Beyond the prompt level, system-wide orchestration and architectural selection significantly reduce energy demands. Optimas \citep{Wu_Sarthi_Zhao_Lee_Shandilya_Grobelnik_Choudhary_Huang_Subbian_Zhang_et_al._2025} maintains a Local Reward Function (LRF) for each component correlating with the global system performance, which detects inadequate configurations. This design offers the ability to update individual components locally and achieves a 12\% performance gain with high data efficiency. Optimas and the system designed by Chen \citep{Chen_Davis_Hanin_Bailis_Zaharia_Zou_Stoica_2025} are routing simpler tasks to smaller, lower-energy LLMs while reserving extensive models only for complex reasoning. At the infrastructure layer, Murakkab \citep{Chaudhry_2025} addresses the inefficiencies of "black-box" frameworks by separating high-level workflow specifications from low-level hardware execution. Using Mixed Integer Linear Programming (MILP) to optimize model choice and parallelism, Murakkab reduces energy consumption by 3.7x and GPU usage by 2.8x. These systemic optimizations ensure that reliability is achieved not through brute-force computation, but through efficient resource allocation. 
+
+
+\section{Reducing Number of Tokens}
+
+Recent research are focusing on different aspects on how to evolve Agentic AI. Working on the architectural design, implementing new or adapted components or addressing the efficient, speed factor of such systems. According to \citep{Xu_2026} working methods are:
+
+\begin{itemize}
+    \item Search for multiple ways on how to solve a task instead of going with the first solution which the LLM came up.
+    \item Increasing the number of processing steps like reranking, self-consistency or backtracking, or verification which is most valuable for high-impact in reliability.
+    \item Caching frequent retrievals or summarizing knowledge to make the context window smaller.
+    \item Use fast-path execution for routine cases and slower verified paths for high-risk actions. Make also use of explicit budgets (time, tokens, tool calls), and permission gates that bound side effects even when the model is capable of exceeding it.
+\end{itemize}
+
+These methods are showing that the most impactful improvements often come from changing the decision loop rather than changing the base model \citep{Xu_2026}. Closing the gap between reliability and sustainability needs improvements in efficiency.
+
+\subsection{Bridging Performance and Sustainability}
+The methods proposed in \citep{Xu_2026} reveal a critical interaction between reliability and efficiency, the more we attempt to make an agent more trustworthy the more we increase its total token consumption. This creates a direct conflict between the operational goal of system integrity and the environmental goal of energy minimization. 
+
+\subsection{Optimizing token density}
+The following frameworks are directly dressing this pain. Sherlock \citep{Ro_2025} optimizes Agentic workflows by replacing "brute-force" verification with selective, speculative execution. The framework operates in two stages: a Domain On-boarding phase that analyzes historical execution traces to map "topological vulnerabilities," and an Online phase that dynamically routes tasks to cost-optimal verifiers. Central to Sherlock is a Fault Model that identifies critical nodes most likely to fail. By simulating behavioral deviations, context loss, and execution errors, the system ranks nodes by their impact on the final outcome. This ranking allows Sherlock to apply resource-intensive verification only to high-vulnerability steps, preventing the computational waste of over-verifying low-impact nodes. Other optimizing strategies \citep{Wu_Meij_Yilmaz_2025, Yang_He_Gao_Cao_Li_Hsu_2025} are maximizing semantic density on the one hand by jointly refining instructions and tool descriptions on the other hand by replacing verbose natural language with modular pseudocode, using control structures to transform reasoning into verifiable programs. In an agentic system, repeated tool calls progressively extend the context window of a task with the results of those tools. Several papers \citep{Xiao_Gao_Peng_Xiong_2025, Gao_Peng_2025, Yang_He_Gao_Cao_Li_Hsu_2025} are presenting frameworks to optimizing agents inference cost by reducing the number of tokens up to 60\%. Higher token density is also reached by reducing the number of tokens without reducing the provided context. TeaRAG \citep{Zhang_Wang_Xu_Zhang_Lyu_Chen_Liu_Xu_Zhao_Gao_et_al._2025} is decreases output tokens by 60\% by compressing both retrieval content and reasoning steps. AgentInfer \citep{Lin_Zhen_Yang_Wang_Liu_Chen_Zhang_Zhou_Li_Chen_et_al} optimizes token density by avoiding repeated work, reusing past useful information, and keeping the agent’s memory short and clean.
+\\\\
+The Token-Oriented Object Notation (TOON) has emerged as a specialized data format intended to replace JSON in contexts where LLMs process structured knowledge \citep{Alshaer, Lafalce_2025, Masciari_Moscato_Napolitano_Orlando_Perillo_Russo_2026, McMillan_2026, Mudbari_Bhagat_2026, Matveev_2026}. By optimizing the character to token ratio, TOON significantly reduces the computational footprint of data retrieval. This format shows particular efficacy in the management of tabular structures \citep{Lafalce_2025, Masciari_Moscato_Napolitano_Orlando_Perillo_Russo_2026, McMillan_2026, Matveev_2026}. However, this reduction in token volume introduces a potential accuracy trade-off. Because foundation models are not natively trained on these novel formats, adherence must be enforced through prompt level instructions. This can lead to structural inconsistencies \citep{Masciari_Moscato_Napolitano_Orlando_Perillo_Russo_2026}. Comparative research indicates that this performance impact is highly model dependent. Findings by McMillan \citep{McMillan_2026} demonstrate accuracy variances ranging from a 7.7% decline to a 2.7% improvement. These results suggest that certain architectures can effectively internalize the TOON schema without significant loss of reliability.
+
+\subsection{Prompt optimization}
+\label{subsec:prompt_optimization}
+Prompt optimization is not directly connected to have less tokens as solutions \citep{Wu_Meij_Yilmaz_2025, Nandagopal_2025} are rewriting instructions to optimize the outcome of agents. The modifying process is mainly driven from verification steps that see incomplete results and detect the main problem in a prompt.
+
+\subsection{optimizing tool usage}
+The same procedure as used in \ref{subsec:prompt_optimization} is also applied from \cite{Wu_Meij_Yilmaz_2025} by again a verifier that detects wrong tool calls and therefore adapts their description to a more meaningful an reliable one. Methodics described in \citep{Yang_Li_Zhou_Zhu_Qu_Fan_Wei_Ye_Kang_Qin_et_al._2026} are working towards efficient and correct tool selection by using external retrievers. It also shows a reliable way for correct tool calling which is measured by inserting the correct parameters with the tool to call. A method for that would be to do an additional LLM inference step to gather the parameters so the LLM that evaluates which tool to use must not also reason how to use it. 
+
+\subsection{Memory optimization}
+Summarizing knowledge to reduce token usage in future of it is one of the several techniques to optimize long and short term memory. MemAgent \citep{Chaudhry_Choukse_Qiu_Goiri_Fonseca_Belay_Bianchini_2025} is a Framework that not only summarizes textual information like \cite{Yang_Li_Zhou_Zhu_Qu_Fan_Wei_Ye_Kang_Qin_et_al._2026} is presenting, it also updates it after each chunk added. This enhances compact memory and decreases token usage as the LLM will use more dense knowledge occupied in less tokens.
+
+\subsection{Reducing Reasoning Token Usage}
+Reasoning tokens reduzieren:
+\citep{Jin_Wei_Brooks_2025} Smaller models using reasoning tokens (RT) can outperform much larger models while using less energy. which is highly effective for logical reasoning tasks but not for common sense. routing tasks depending on their difficulty
+\citep{Han_Wang_Fang_Zhao_Ma_Chen_2025}
+reasoning process of current LLMs is unnecessarily lengthy and it can be compressed by including a reasonable token budget in the prompt
+
+
+
+\section{Discussion}
+
+\section*{Conclusions}
+
+\section*{Acknowledgements}
+Anyone to thank/credit for helping your team along the way? This is the place to do it!
+
+\bibliography{thesis}
+\end{document}

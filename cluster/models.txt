@@ -1,0 +1,7 @@
+# HF_MODEL_ID:MODEL_TAG:NGPU:QUANT:PARTITION:MEM
+# A100 = 40GB each. 1 GPU = half node (256GB RAM). 2 GPUs = full node (512GB RAM).
+Qwen/Qwen3-32B-AWQ:qwen3-32b:1:awq:zen3_0512_a100x2
+# A40 = 48GB each. 2x A40 = 96GB VRAM. Good for models up to ~90GB.
+Qwen/Qwen3-32B-AWQ:qwen3-32b-a40:1:awq:zen2_0256_a40x2
+# Larger models need 2x A100 (80GB total) or 2x A40 (96GB total)
+Qwen/Qwen3-235B-A22B-AWQ:qwen3-235b:2:awq:zen2_0256_a40x2

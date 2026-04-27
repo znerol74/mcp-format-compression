@@ -1,0 +1,820 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+%% Welcome to Overleaf!
+%% If this is your first time using LaTeX, it might be worth going through this brief presentation:
+%% https://www.overleaf.com/latex/learn/free-online-introduction-to-latex-part-1
+
+%% Researchers have been using LaTeX for decades to typeset their papers, producing beautiful, crisp documents in the process. By learning LaTeX, you are effectively following in their footsteps, and learning a highly valuable skill!
+
+%% The \usepackage commands below can be thought of as analogous to importing libraries into Python, for instance. We've pre-formatted this for you, so you can skip right ahead to the title below.
+
+%% Language and font encodings
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage[T1]{fontenc}
+
+%% Sets page size and margins
+\usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage{multirow}
+
+\usepackage{tabularx}
+\usepackage{array}
+
+%% Useful packages
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage{natbib}
+\bibliographystyle{unsrt}
+%% Title
+\title{
+		\usefont{OT1}{bch}{b}{n}
+		\normalfont \normalsize \textsc{STEM Fellowship Big Data Challenge 2020} \\ [10pt]
+		\huge Project Title \\
+}
+\selectlanguage{english}
+\usepackage{authblk}
+\author[1]{Lorenz Kutschka}
+\author[1]{Author Two}
+\affil[1]{High School 1}
+\affil[2]{High School 2}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+asd
+\end{abstract} 
+
+{\textbf{Keywords} 
+pick, 3-5, good, keywords}
+
+\section{Introduction}
+\label{sec:introduction}
+Large Language Models (LLMs) are increasingly deployed within comprehensive Agentic AI systems, where they must process extensive structured tool descriptions, interpret execution results, and generate precise action plans to achieve complex goals. With the emergence of the Model Context Protocol (MCP), information exchange between LLMs and external tools has become standardized, enabling system expansion through the addition of new tools rather than reworking integrations. However, this scalability comes at a cost. Token consumption grows substantially as systems incorporate more tools, longer descriptions, and richer result data.
+
+In Agentic AI systems, efficiency has become as critical as accuracy. Errors in tool selection or execution lead to retry loops, multiplying LLM inference calls and compounding computational costs. A structured approach where the model first processes tool definitions, plans execution steps, and outputs structured commands helps accomplish tasks reliably \citep{Ro_Qiu_Goiri_Fonseca_Bianchini_Akella_Wang_Erez_Choukse_2025}. Yet this methodology significantly increases both input tokens when processing tool descriptions and results, and output tokens when specifying tool invocations. This makes token efficiency a first-order concern.
+
+MCP establishes a standardized interface for LLM-tool communication, defining consistent schemas for tool documentation, invocation, and result formatting. MCP relies on JavaScript Object Notation (JSON) \citep{Bourhis_Reutter_Suárez_Vrgoč_2017} for data exchange. LLMs interpret JSON effectively due to extensive examples in their training corpora. However, JSON was designed for general-purpose object representation rather than language-model communication, resulting in substantial token overhead from structural elements such as quotation marks, commas, and braces.
+
+Reducing token consumption in Agentic AI inference is an active research area \citep{Yang_He_Gao_Cao_Li_Hsu_2025, Zhang_Wang_Xu_Zhang_Lyu_Chen_Liu_Xu_Zhao_Gao_et_al._2025, Han_Wang_Fang_Zhao_Ma_Chen_2025, Ro_Qiu_Goiri_Fonseca_Bianchini_Akella_Wang_Erez_Choukse_2025}, motivated by inference cost reduction and environmental impact mitigation. Recently, Token-Oriented Object Notation (TOON) has been proposed as a more compact alternative to JSON \citep{Lafalce_2025}. While initial results demonstrate that LLMs can understand TOON and achieve token savings with minimal accuracy reduction in generation tasks \citep{Masciari_Moscato_Napolitano_Orlando_Perillo_Russo_2026}, existing work has not systematically evaluated these formats within real Agentic AI pipelines involving tool discovery, planning, and execution.
+
+A key question emerges. Can token-optimized formats reduce computational overhead in Agentic AI systems without degrading task completion accuracy? Prior work suggests that conversion tasks are generally easier for LLMs than generation tasks \citep{Masciari_Moscato_Napolitano_Orlando_Perillo_Russo_2026}, but it remains unclear whether models can reliably interpret tool descriptions and generate correct tool invocations when these are presented in unfamiliar, token-optimized formats.
+
+In this work, we contribute to the emerging field of token optimization in Agentic AI. We present a comprehensive benchmark framework that evaluates data format impact on both token efficiency and task accuracy across two complementary MCP-based benchmarks: MCPToolBenchPP \citep{fan2025mcptoolbench} for single-turn tool calling and MCP-Universe \citep{luo2025mcpuniverse} for multi-turn agentic reasoning. Our analysis is guided by the following research questions.
+\begin{itemize}
+    \item RQ1: How much token reduction can be achieved by replacing JSON with alternative formats such as TOON and TRON in MCP-based Agentic AI systems?
+    
+    \item RQ2: Does format substitution affect LLM accuracy in tool selection and parameter generation?
+    
+    \item (RQ3): How do different LLM architectures respond to token-optimized formats in agentic task completion?
+\end{itemize}
+
+
+This work therefore moves beyond isolated token compression benchmarks to directly evaluate how token-optimized data formats function within live Agentic AI systems, demonstrating not only their efficiency gains but also their practical viability for accurate tool reasoning and execution.
+
+[comment]
+
+\section{Background}
+\subsection{Tokenization}
+
+LLMs do not process raw text but instead operate on tokens which are subword units produced by a tokenizer that maps text to integer sequences. Modern tokenizers such as Byte Pair Encoding \citep{sennrich2016neural} merge frequently co-occurring byte sequences into single tokens, so common words and patterns are encoded compactly while rare strings consume multiple tokens. Both inference cost and context window limits are measured in tokens: API providers charge per input and output token, and each model has a fixed context length that bounds the total tokens across the prompt and response. Consequently, any reduction in token count for a given payload directly translates to lower cost and more available context capacity. In structured data formats, syntactic overhead like quotation marks, braces, colons, commas do often produce tokens that carry no semantic information, making format choice a lever for token efficiency.
+
+\subsection{MCP}
+
+MCP is an open-source standard for connecting LLMs to an external tool, database or system, analogous to how HTTP standardized web communication. It utilizes a client-server architecture:
+
+\begin{itemize}
+    \item MCP Servers: Host and execute specific tools or data resources.
+    \item MCP Clients: LLM-based applications that discover and trigger these tools to fulfill user requests.
+\end{itemize}
+
+This interaction is managed via a data layer (JSON-RPC), which handles the structured exchange of tools and prompts, and a Transport Layer, which defines the communication mechanism. This standardization reduces engineering overhead while providing a secure, predictable environment for Agentic operations \citep{mcp2026}. 
+
+\subsubsection{MCP Schema}
+The MCP Schema defines each server's capabilities that it can expose. These are defined in three core primitives:
+\begin{itemize}
+    \item Tools: executable functions
+    \item Resources: Contextual information sources
+    \item Prompts: Reusable templates
+\end{itemize}
+
+\subsection{Object Notation Formats}
+
+We evaluate three serialization formats. To illustrate their structural differences, each is shown encoding the same sample data below.
+
+\subsubsection{JSON}
+
+JavaScript Object Notation (JSON) is a lightweight, text-based data-interchange format standardized in the early 2000s \citep{Bourhis_Reutter_Suárez_Vrgoč_2017}. It uses quotation marks, braces, brackets, colons, and commas to delimit structure. JSON is the native format of the MCP and the most common format encountered by LLMs during pre-training. However, these structural delimiters consume tokens that carry no semantic information.
+
+\subsubsection{TOON}
+
+Token-Oriented Object Notation (TOON) is a serialization format designed as a lossless, drop-in alternative to JSON, optimized to minimize tokenization overhead \citep{toon-format/toon_2026, Lafalce_2025}. TOON eliminates quotation marks, braces, and brackets by using YAML-like indentation for nested objects and CSV-style tabular notation for uniform arrays. This combination is particularly effective for structured data with repeated schemas, such as lists of objects sharing the same keys. Benchmark results show that TOON achieves substantial compression on tabular data but is less effective for deeply nested or non-uniform structures \citep{Lafalce_2025}. Initial accuracy evaluations suggest that LLMs can interpret TOON with minimal degradation, though structural correctness decreases for models without native support \citep{Masciari_Moscato_Napolitano_Orlando_Perillo_Russo_2026}.
+
+\subsubsection{TRON}
+
+Token Reduced Object Notation (TRON) is a compact serialization format that reduces redundancy through \textit{class definitions} \citep{tron-format/tron-javascript_2026, TRON_Format_2026}. When multiple objects share the same structure, TRON defines the schema once as a named class (e.g., \texttt{class~A:~id,name,distanceKm}) and then instantiates each object compactly (e.g., \texttt{A(1,"Blue~Lake~Trail",7.5)}). The remaining data uses minified JSON without whitespace. This approach achieves compression across both uniform and non-uniform data: uniform arrays benefit from class instantiation, while other structures benefit from whitespace removal. Unlike TOON, TRON's compression scales with the number of repeated structures, making it particularly effective for tool schemas where multiple tools share similar parameter patterns. No prior work has evaluated TRON's impact on LLM accuracy.
+
+\begin{figure*}[t]
+\centering
+\scriptsize
+
+\begin{minipage}[t]{0.32\textwidth}
+\textbf{JSON}
+\vspace{2mm}
+
+\begin{verbatim}
+{
+  "context": {
+    "task": "Our favorite hikes",
+    "location": "Boulder",
+    "season": "spring_2025"
+  },
+  "friends": ["ana", "luis", "sam"],
+  "hikes": [
+    {
+     "id": 1, 
+     "name": "Blue Lake Trail",
+     "distanceKm": 7.5
+    },
+    {
+     "id": 2, 
+     "name": "Ridge Overlook",
+     "distanceKm": 9.2
+    },
+    {
+     "id": 3, 
+     "name": "Wildflower Loop",
+     "distanceKm": 5.1
+    }
+  ]
+}
+\end{verbatim}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.32\textwidth}
+\textbf{TOON}
+\vspace{2mm}
+
+\begin{verbatim}
+context:
+  task: Our favorite hikes
+  location: Boulder
+  season: spring_2025
+
+friends[3]: ana,luis,sam
+
+hikes[3]{id,name,distanceKm}:
+  1,Blue Lake Trail,7.5
+  2,Ridge Overlook,9.2
+  3,Wildflower Loop,5.1
+\end{verbatim}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.32\textwidth}
+\textbf{TRON}
+\vspace{2mm}
+
+\begin{verbatim}
+class A: id,name,distanceKm
+
+{"context":{"task":"Our favorite
+hikes","location":"Boulder","season":
+"spring_2025"},"friends":["ana","luis",
+"sam"],"hikes":[A(1,"Blue Lake Trail",
+7.5),A(2,"Ridge Overlook",9.2),A(3,
+"Wildflower Loop",5.1)]}
+\end{verbatim}
+\end{minipage}
+
+\caption{Example encodings of the same data in JSON, TOON, and TRON.}
+\label{fig:serialization_examples}
+
+\end{figure*}
+
+\section{Related Work}
+\label{sec:related_work}
+Related work yet shows that replacing JSON with new formats works, reduces token count and also helps in accuracy.
+
+\subsection{Token efficiency in LLM systems}
+
+
+\subsection{Alternative data formats for LLMs}
+Toon needs less bytes \citep{Lafalce_2025}
+Toon reduces energy consumption  and is stable in accuracy: \cite{Masciari_Moscato_Napolitano_Orlando_Perillo_Russo_2026}
+A notation for time series data which reduces token count: \citep{Mudbari_Bhagat_2026}
+
+\section{Experimental Setup}
+\label{sec:experimental_setup}
+
+To evaluate the impact of token-optimized data formats on Agentic AI performance, we developed a unified experiment framework that applies format conversion bidirectionally within live MCP-based tool execution pipelines. We evaluate across two complementary benchmarks that test both single-turn tool calling and multi-turn agentic reasoning.
+
+\subsection{Benchmark Selection}
+\label{sec:benchmark_selection}
+
+Our selection process prioritizes benchmarks that (1) operate on real MCP server infrastructure rather than simulated tools and (2) provide deterministic or semi-deterministic evaluation rather than relying solely on subjective LLM judges. Additionally, we instrumented both benchmarks with token-level decomposition (schema, tool call, and result tokens) to measure format compression impact at each conversion point. Table~\ref{tab:mcp_benchmarks} summarizes the landscape of MCP benchmarks.
+
+We selected \textbf{MCPToolBenchPP} and \textbf{MCP-Universe} as complementary evaluation targets that isolate different aspects of format impact.
+
+\textbf{MCPToolBenchPP} measures \textit{tool-calling precision}: given a query and tool schemas, can the LLM select the correct tool and produce valid parameters in a single turn? This directly tests whether compressed formats degrade the model's ability to interpret schemas and generate structured output. With 1,509 tasks and 5 trials per task, it provides statistically robust pass@k estimates across diverse tool domains.
+
+\textbf{MCP-Universe} measures \textit{end-to-end task completion}: can a ReAct agent reason over multiple turns, chain tool calls, and achieve a concrete goal verified by execution-based evaluation? This captures second-order effects that single-turn benchmarks miss---compressed formats may cause the model to need more iterations (increasing total token consumption), produce harder-to-parse intermediate results, or lose coherence over long conversations where compressed history accumulates.
+
+Together, they answer complementary questions: MCPToolBenchPP reveals whether format compression affects the atomic unit of tool calling (RQ2), while MCP-Universe reveals whether these effects compound or cancel out in realistic multi-step workflows (RQ1, RQ3).
+
+\begin{table*}[t]
+    \centering
+    \footnotesize
+    \setlength{\tabcolsep}{4pt}
+    \renewcommand{\arraystretch}{1.15}
+    \caption{Comparison of MCP benchmarks. \textbf{Eval Method} distinguishes between subjective LLM judges and objective execution verification.}
+    \label{tab:mcp_benchmarks}
+
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Benchmark} & \textbf{Scale \& Domain} & \textbf{Eval Method} & \textbf{Process Metrics} \\
+        \midrule
+
+        \textbf{MCPToolBenchPP} &
+        1,509 tasks; 6 domains (finance, maps, browser) &
+        \textbf{Hybrid} (AST match + LLM judge) &
+        Pass@k; token decomposition \\
+
+        \addlinespace
+        \textbf{MCP-Universe} &
+        231 tasks; 6 domains (finance, web, 3D) &
+        \textbf{Execution} (live API state verification) &
+        Tokens/turn; iteration count \\
+
+        \addlinespace
+        MCPMark &
+        127 tasks; 5 servers (CRUD, DB) &
+        Execution (state check) &
+        Pass$^4$ (retries); cost \\
+
+        \addlinespace
+        MCPAgentBench &
+        841 tasks; 20k+ tools (simulated) &
+        Exact match (golden tool set) &
+        Token efficiency (score/1k tok) \\
+
+        \addlinespace
+        MCP-Bench &
+        Synthesized; 28 servers (scientific) &
+        Hybrid (LLM judge + schema) &
+        Planning score (qualitative) \\
+
+        \bottomrule
+    \end{tabularx}
+
+    \vspace{2pt}
+    \footnotesize\emph{Note:} Bold rows indicate benchmarks selected for this study. ``Hybrid'' indicates a mix of deterministic checks and model-based judging.
+\end{table*}
+
+\subsection{Benchmark Framework}
+\label{sec:framework}
+
+We developed a shared serialization library (\texttt{shared\_format}) that serves as the single source of truth for all format conversions across both benchmarks. The original TRON reference implementation in JavaScript \citep{tron-format/tron-javascript_2026} was ported to Python to enable integration into the benchmark pipeline. Format conversion is applied bidirectionally at three points in the execution loop:
+
+\begin{enumerate}
+    \item \textbf{Tool schemas (input):} MCP tool definitions, originally in JSON Schema, are serialized to the target format before being presented to the LLM in the system prompt.
+    \item \textbf{Tool results (input):} Execution results returned by MCP servers are converted from JSON to the target format before inclusion in the conversation context.
+    \item \textbf{Tool calls (output):} The LLM is prompted to emit tool invocations in the target format. These are parsed back to JSON via a lenient deserializer for MCP execution.
+\end{enumerate}
+
+Critically, we decouple input and output formats. The \textit{tool format} controls what the LLM reads (schemas and results), while the tool call format controls what the LLM writes (tool invocations). This decoupling enables two experimental conditions: input-only compression (schemas and results compressed, tool calls in JSON) and full compression (all three conversion points use the same format). The input-only condition isolates the effect of reading compressed data from the additional challenge of generating it.
+
+For TRON serialization, tool schemas are serialized as a single batch to enable TRON's class definition mechanism, which compresses repeated structures by defining them once and instantiating them compactly. JSON and TOON schemas are serialized individually, as these formats do not benefit from batching.
+
+\subsection{Benchmarks}
+\label{sec:benchmarks}
+
+\subsubsection{MCPToolBenchPP}
+MCPToolBenchPP \citep{fan2025mcptoolbench} evaluates single-turn tool calling. Given a natural language query and a set of tool schemas, the LLM must produce a single tool invocation with the correct tool name and parameters. Each task is executed with 5 independent trials to enable robust pass@k estimation.
+
+Tools are embedded directly in the system prompt (\textit{prompt mode}) rather than using native function-calling APIs. This is essential for our study: native APIs handle tool schema serialization internally, making it impossible to substitute custom formats like TOON or TRON. In prompt mode, we control the exact serialization of tool schemas, results, and tool call output. The LLM's response is parsed for a \texttt{TOOL\_CALL} marker followed by a serialized tool call, which is deserialized and matched against ground truth.
+
+The benchmark comprises 1,509 tasks across six categories:
+
+\begin{table}[h]
+    \centering
+    \footnotesize
+    \caption{MCPToolBenchPP task distribution.}
+    \label{tab:benchpp_tasks}
+    \begin{tabular}{@{}lrr@{}}
+        \toprule
+        \textbf{Category} & \textbf{Tasks} & \textbf{Tools} \\
+        \midrule
+        Map              & 500 & 32 \\
+        Pay              & 310 & 6 \\
+        File System      & 241 & 11 \\
+        Browser          & 187 & 32 \\
+        Search           & 181 & 5 \\
+        Finance          & 90  & 1 \\
+        \midrule
+        \textbf{Total}   & \textbf{1,509} & \textbf{87} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{MCP-Universe}
+MCP-Universe \citep{luo2025mcpuniverse} evaluates multi-turn agentic reasoning. While MCP-Universe supports both a native function-calling mode (using the OpenAI tool-use API) and a text-based ReAct agent \citep{yao2023react}, we use the ReAct agent for the same reason as above: the native API manages tool schemas internally, preventing custom serialization. The ReAct agent embeds tool schemas as text in the prompt, giving us full control over the format. The agent iteratively reasons about the task, selects tools, executes them against live MCP servers, and incorporates results into its conversation history. Execution continues until the agent produces a final answer or reaches a maximum of 20 iterations.
+
+Each task is evaluated through execution-based verification: task-specific evaluator expressions check actual state changes (e.g., whether a financial calculation matches the expected value, whether a file was created with the correct content) rather than relying on output text comparison. This makes evaluation robust to format changes in the agent's responses.
+
+The benchmark comprises 176 tasks across five categories (web search excluded due to external API rate limits):
+
+\begin{table}[h]
+    \centering
+    \footnotesize
+    \caption{MCP-Universe task distribution.}
+    \label{tab:universe_tasks}
+    \begin{tabular}{@{}lrl@{}}
+        \toprule
+        \textbf{Category} & \textbf{Tasks} & \textbf{MCP Servers} \\
+        \midrule
+        Location Navigation  & 45 & Google Maps \\
+        Financial Analysis   & 40 & yfinance, calculator \\
+        Browser Automation   & 39 & Playwright, Chrome \\
+        Repository Mgmt      & 33 & GitHub, filesystem \\
+        3D Design            & 19 & Blender \\
+        \midrule
+        \textbf{Total}       & \textbf{176} & \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Formats Under Evaluation}
+\label{sec:formats}
+
+We evaluate three object notation formats:
+
+\begin{itemize}
+    \item \textbf{JSON} (baseline): The native MCP format. LLMs encounter JSON extensively during pre-training, making it the natural reference point.
+    \item \textbf{TOON}: Combines YAML-like indentation with CSV-style tabular arrays. Efficient for uniform, tabular structures but less effective for deeply nested data \citep{toon-format/toon_2026}.
+    \item \textbf{TRON}: Uses class definitions to eliminate structural redundancy. Defines data structures once and instantiates them compactly, achieving compression across both uniform and non-uniform data \citep{tron-format/tron-javascript_2026}.
+\end{itemize}
+
+Under \textit{full compression}, each format is applied consistently across all three conversion points (schemas, results, and tool calls). Under \textit{input-only compression}, TOON or TRON is used for schemas and results while tool calls remain in JSON. The JSON baseline is identical under both conditions.
+
+\subsection{Model Configuration}
+\label{sec:model}
+
+All experiments use Qwen3-32B \citep{qwen3_2025} accessed via OpenRouter. For MCPToolBenchPP, evaluation correctness is assessed by DeepSeek-V3 \citep{deepseek_v3_2024} serving as an LLM judge for parameter accuracy. MCP-Universe uses deterministic evaluators and does not require a judge model.
+
+MCPToolBenchPP uses default generation parameters. MCP-Universe uses temperature 0.6, a maximum of 20,000 completion tokens per call, and reasoning set to high.
+
+Token counts throughout all experiments are measured using the \texttt{cl100k\_base} tokenizer from \texttt{tiktoken} to ensure consistent cross-format comparison independent of the model's native tokenizer.
+
+\subsection{Evaluation Metrics}
+\label{sec:metrics}
+
+We employ both benchmark-specific accuracy metrics and unified token metrics across both benchmarks.
+
+\subsubsection{Token Metrics}
+Token consumption is decomposed into three format-sensitive components: \textit{schema tokens} (tool definitions presented to the LLM), \textit{tool call tokens} (LLM-generated tool invocations), and \textit{result tokens} (MCP execution results appended to context). This decomposition reveals where each format achieves its compression gains and where overhead may increase.
+
+\subsubsection{MCPToolBenchPP Metrics}
+Task quality is measured through three hierarchical pass@k metrics, each estimated over 5 independent trials per task using the unbiased estimator of \citet{chen2021evaluating}:
+
+\begin{itemize}
+    \item \textit{pass@1}: Overall correctness---the correct tool is selected with correct parameters and produces the expected output.
+    \item \textit{tool\_pass@1}: Tool selection correctness---whether the chosen tool name matches the ground truth.
+    \item \textit{parameter\_pass@1}: Parameter correctness---whether arguments match the expected values, given a correct tool selection. Assessed via AST matching with LLM-judge fallback for semantic equivalence.
+\end{itemize}
+
+\subsubsection{MCP-Universe Metrics}
+Tasks are evaluated through deterministic evaluator expressions that verify actual execution outcomes. Each task defines one or more evaluators that check state changes (e.g., whether a stock price was correctly retrieved, whether a navigation route was computed). A task passes only if all its evaluators succeed. We report the \textit{pass rate} (fraction of tasks where all evaluators pass) and the \textit{average iterations} per task as a measure of reasoning efficiency.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Token Consumption}
+
+\subsection{Execution Statistics}
+
+\subsection{Quality Impact}
+
+\section{Discussion}
+
+\section*{Conclusions}
+
+\section*{Acknowledgements}
+Anyone to thank/credit for helping your team along the way? This is the place to do it!
+
+\bibliography{bibliography}
+\end{document}
+\documentclass[10pt,twocolumn,letterpaper]{article}
+%% Welcome to Overleaf!
+%% If this is your first time using LaTeX, it might be worth going through this brief presentation:
+%% https://www.overleaf.com/latex/learn/free-online-introduction-to-latex-part-1
+
+%% Researchers have been using LaTeX for decades to typeset their papers, producing beautiful, crisp documents in the process. By learning LaTeX, you are effectively following in their footsteps, and learning a highly valuable skill!
+
+%% The \usepackage commands below can be thought of as analogous to importing libraries into Python, for instance. We've pre-formatted this for you, so you can skip right ahead to the title below.
+
+%% Language and font encodings
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage[T1]{fontenc}
+
+%% Sets page size and margins
+\usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage{multirow}
+
+\usepackage{tabularx}
+\usepackage{array}
+
+%% Useful packages
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage{natbib}
+\bibliographystyle{unsrt}
+%% Title
+\title{
+		\usefont{OT1}{bch}{b}{n}
+		\normalfont \normalsize \textsc{STEM Fellowship Big Data Challenge 2020} \\ [10pt]
+		\huge Project Title \\
+}
+\selectlanguage{english}
+\usepackage{authblk}
+\author[1]{Lorenz Kutschka}
+\author[1]{Author Two}
+\affil[1]{High School 1}
+\affil[2]{High School 2}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+asd
+\end{abstract} 
+
+{\textbf{Keywords} 
+pick, 3-5, good, keywords}
+
+\section{Introduction}
+\label{sec:introduction}
+Large Language Models (LLMs) are increasingly deployed within comprehensive Agentic AI systems, where they must process extensive structured tool descriptions, interpret execution results, and generate precise action plans to achieve complex goals. With the emergence of the Model Context Protocol (MCP), information exchange between LLMs and external tools has become standardized, enabling system expansion through the addition of new tools rather than reworking integrations. However, this scalability comes at a cost. Token consumption grows substantially as systems incorporate more tools, longer descriptions, and richer result data.
+
+In Agentic AI systems, efficiency has become as critical as accuracy. Errors in tool selection or execution lead to retry loops, multiplying LLM inference calls and compounding computational costs. A structured approach where the model first processes tool definitions, plans execution steps, and outputs structured commands helps accomplish tasks reliably \citep{Ro_Qiu_Goiri_Fonseca_Bianchini_Akella_Wang_Erez_Choukse_2025}. Yet this methodology significantly increases both input tokens when processing tool descriptions and results, and output tokens when specifying tool invocations. This makes token efficiency a first-order concern.
+
+MCP establishes a standardized interface for LLM-tool communication, defining consistent schemas for tool documentation, invocation, and result formatting. MCP relies on JavaScript Object Notation (JSON) \citep{Bourhis_Reutter_Suárez_Vrgoč_2017} for data exchange. LLMs interpret JSON effectively due to extensive examples in their training corpora. However, JSON was designed for general-purpose object representation rather than language-model communication, resulting in substantial token overhead from structural elements such as quotation marks, commas, and braces.
+
+Reducing token consumption in Agentic AI inference is an active research area \citep{Yang_He_Gao_Cao_Li_Hsu_2025, Zhang_Wang_Xu_Zhang_Lyu_Chen_Liu_Xu_Zhao_Gao_et_al._2025, Han_Wang_Fang_Zhao_Ma_Chen_2025, Ro_Qiu_Goiri_Fonseca_Bianchini_Akella_Wang_Erez_Choukse_2025}, motivated by inference cost reduction and environmental impact mitigation. Recently, Token-Oriented Object Notation (TOON) has been proposed as a more compact alternative to JSON \citep{Lafalce_2025}. While initial results demonstrate that LLMs can understand TOON and achieve token savings with minimal accuracy reduction in generation tasks \citep{Masciari_Moscato_Napolitano_Orlando_Perillo_Russo_2026}, existing work has not systematically evaluated these formats within real Agentic AI pipelines involving tool discovery, planning, and execution.
+
+A key question emerges. Can token-optimized formats reduce computational overhead in Agentic AI systems without degrading task completion accuracy? Prior work suggests that conversion tasks are generally easier for LLMs than generation tasks \citep{Masciari_Moscato_Napolitano_Orlando_Perillo_Russo_2026}, but it remains unclear whether models can reliably interpret tool descriptions and generate correct tool invocations when these are presented in unfamiliar, token-optimized formats.
+
+In this work, we contribute to the emerging field of token optimization in Agentic AI. We present a comprehensive benchmark framework that evaluates data format impact on both token efficiency and task accuracy across two complementary MCP-based benchmarks: MCPToolBenchPP \citep{fan2025mcptoolbench} for single-turn tool calling and MCP-Universe \citep{luo2025mcpuniverse} for multi-turn agentic reasoning. Our analysis is guided by the following research questions.
+\begin{itemize}
+    \item RQ1: How much token reduction can be achieved by replacing JSON with alternative formats such as TOON and TRON in MCP-based Agentic AI systems?
+    
+    \item RQ2: Does format substitution affect LLM accuracy in tool selection and parameter generation?
+    
+    \item (RQ3): How do different LLM architectures respond to token-optimized formats in agentic task completion?
+\end{itemize}
+
+
+This work therefore moves beyond isolated token compression benchmarks to directly evaluate how token-optimized data formats function within live Agentic AI systems, demonstrating not only their efficiency gains but also their practical viability for accurate tool reasoning and execution.
+
+[comment]
+
+\section{Background}
+\subsection{Tokenization}
+
+LLMs do not process raw text but instead operate on tokens which are subword units produced by a tokenizer that maps text to integer sequences. Modern tokenizers such as Byte Pair Encoding \citep{sennrich2016neural} merge frequently co-occurring byte sequences into single tokens, so common words and patterns are encoded compactly while rare strings consume multiple tokens. Both inference cost and context window limits are measured in tokens: API providers charge per input and output token, and each model has a fixed context length that bounds the total tokens across the prompt and response. Consequently, any reduction in token count for a given payload directly translates to lower cost and more available context capacity. In structured data formats, syntactic overhead like quotation marks, braces, colons, commas do often produce tokens that carry no semantic information, making format choice a lever for token efficiency.
+
+\subsection{MCP}
+
+MCP is an open-source standard for connecting LLMs to an external tool, database or system, analogous to how HTTP standardized web communication. It utilizes a client-server architecture:
+
+\begin{itemize}
+    \item MCP Servers: Host and execute specific tools or data resources.
+    \item MCP Clients: LLM-based applications that discover and trigger these tools to fulfill user requests.
+\end{itemize}
+
+This interaction is managed via a data layer (JSON-RPC), which handles the structured exchange of tools and prompts, and a Transport Layer, which defines the communication mechanism. This standardization reduces engineering overhead while providing a secure, predictable environment for Agentic operations \citep{mcp2026}. 
+
+\subsubsection{MCP Schema}
+The MCP Schema defines each server's capabilities that it can expose. These are defined in three core primitives:
+\begin{itemize}
+    \item Tools: executable functions
+    \item Resources: Contextual information sources
+    \item Prompts: Reusable templates
+\end{itemize}
+
+\subsection{Object Notation Formats}
+
+We evaluate three serialization formats. To illustrate their structural differences, each is shown encoding the same sample data below.
+
+\subsubsection{JSON}
+
+JavaScript Object Notation (JSON) is a lightweight, text-based data-interchange format standardized in the early 2000s \citep{Bourhis_Reutter_Suárez_Vrgoč_2017}. It uses quotation marks, braces, brackets, colons, and commas to delimit structure. JSON is the native format of the MCP and the most common format encountered by LLMs during pre-training. However, these structural delimiters consume tokens that carry no semantic information.
+
+\subsubsection{TOON}
+
+Token-Oriented Object Notation (TOON) is a serialization format designed as a lossless, drop-in alternative to JSON, optimized to minimize tokenization overhead \citep{toon-format/toon_2026, Lafalce_2025}. TOON eliminates quotation marks, braces, and brackets by using YAML-like indentation for nested objects and CSV-style tabular notation for uniform arrays. This combination is particularly effective for structured data with repeated schemas, such as lists of objects sharing the same keys. Benchmark results show that TOON achieves substantial compression on tabular data but is less effective for deeply nested or non-uniform structures \citep{Lafalce_2025}. Initial accuracy evaluations suggest that LLMs can interpret TOON with minimal degradation, though structural correctness decreases for models without native support \citep{Masciari_Moscato_Napolitano_Orlando_Perillo_Russo_2026}.
+
+\subsubsection{TRON}
+
+Token Reduced Object Notation (TRON) is a compact serialization format that reduces redundancy through \textit{class definitions} \citep{tron-format/tron-javascript_2026, TRON_Format_2026}. When multiple objects share the same structure, TRON defines the schema once as a named class (e.g., \texttt{class~A:~id,name,distanceKm}) and then instantiates each object compactly (e.g., \texttt{A(1,"Blue~Lake~Trail",7.5)}). The remaining data uses minified JSON without whitespace. This approach achieves compression across both uniform and non-uniform data: uniform arrays benefit from class instantiation, while other structures benefit from whitespace removal. Unlike TOON, TRON's compression scales with the number of repeated structures, making it particularly effective for tool schemas where multiple tools share similar parameter patterns. No prior work has evaluated TRON's impact on LLM accuracy.
+
+\begin{figure*}[t]
+\centering
+\scriptsize
+
+\begin{minipage}[t]{0.32\textwidth}
+\textbf{JSON}
+\vspace{2mm}
+
+\begin{verbatim}
+{
+  "context": {
+    "task": "Our favorite hikes",
+    "location": "Boulder",
+    "season": "spring_2025"
+  },
+  "friends": ["ana", "luis", "sam"],
+  "hikes": [
+    {
+     "id": 1, 
+     "name": "Blue Lake Trail",
+     "distanceKm": 7.5
+    },
+    {
+     "id": 2, 
+     "name": "Ridge Overlook",
+     "distanceKm": 9.2
+    },
+    {
+     "id": 3, 
+     "name": "Wildflower Loop",
+     "distanceKm": 5.1
+    }
+  ]
+}
+\end{verbatim}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.32\textwidth}
+\textbf{TOON}
+\vspace{2mm}
+
+\begin{verbatim}
+context:
+  task: Our favorite hikes
+  location: Boulder
+  season: spring_2025
+
+friends[3]: ana,luis,sam
+
+hikes[3]{id,name,distanceKm}:
+  1,Blue Lake Trail,7.5
+  2,Ridge Overlook,9.2
+  3,Wildflower Loop,5.1
+\end{verbatim}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.32\textwidth}
+\textbf{TRON}
+\vspace{2mm}
+
+\begin{verbatim}
+class A: id,name,distanceKm
+
+{"context":{"task":"Our favorite
+hikes","location":"Boulder","season":
+"spring_2025"},"friends":["ana","luis",
+"sam"],"hikes":[A(1,"Blue Lake Trail",
+7.5),A(2,"Ridge Overlook",9.2),A(3,
+"Wildflower Loop",5.1)]}
+\end{verbatim}
+\end{minipage}
+
+\caption{Example encodings of the same data in JSON, TOON, and TRON.}
+\label{fig:serialization_examples}
+
+\end{figure*}
+
+\section{Related Work}
+\label{sec:related_work}
+Related work yet shows that replacing JSON with new formats works, reduces token count and also helps in accuracy.
+
+\subsection{Token efficiency in LLM systems}
+
+
+\subsection{Alternative data formats for LLMs}
+Toon needs less bytes \citep{Lafalce_2025}
+Toon reduces energy consumption  and is stable in accuracy: \cite{Masciari_Moscato_Napolitano_Orlando_Perillo_Russo_2026}
+A notation for time series data which reduces token count: \citep{Mudbari_Bhagat_2026}
+
+\section{Experimental Setup}
+\label{sec:experimental_setup}
+
+To evaluate the impact of token-optimized data formats on Agentic AI performance, we developed a unified experiment framework that applies format conversion bidirectionally within live MCP-based tool execution pipelines. We evaluate across two complementary benchmarks that test both single-turn tool calling and multi-turn agentic reasoning.
+
+\subsection{Benchmark Selection}
+\label{sec:benchmark_selection}
+
+Our selection process prioritizes benchmarks that (1) operate on real MCP server infrastructure rather than simulated tools and (2) provide deterministic or semi-deterministic evaluation rather than relying solely on subjective LLM judges. Additionally, we instrumented both benchmarks with token-level decomposition (schema, tool call, and result tokens) to measure format compression impact at each conversion point. Table~\ref{tab:mcp_benchmarks} summarizes the landscape of MCP benchmarks.
+
+We selected \textbf{MCPToolBenchPP} and \textbf{MCP-Universe} as complementary evaluation targets that isolate different aspects of format impact.
+
+\textbf{MCPToolBenchPP} measures \textit{tool-calling precision}: given a query and tool schemas, can the LLM select the correct tool and produce valid parameters in a single turn? This directly tests whether compressed formats degrade the model's ability to interpret schemas and generate structured output. With 1,509 tasks and 5 trials per task, it provides statistically robust pass@k estimates across diverse tool domains.
+
+\textbf{MCP-Universe} measures \textit{end-to-end task completion}: can a ReAct agent reason over multiple turns, chain tool calls, and achieve a concrete goal verified by execution-based evaluation? This captures second-order effects that single-turn benchmarks miss---compressed formats may cause the model to need more iterations (increasing total token consumption), produce harder-to-parse intermediate results, or lose coherence over long conversations where compressed history accumulates.
+
+Together, they answer complementary questions: MCPToolBenchPP reveals whether format compression affects the atomic unit of tool calling (RQ2), while MCP-Universe reveals whether these effects compound or cancel out in realistic multi-step workflows (RQ1, RQ3).
+
+\begin{table*}[t]
+    \centering
+    \footnotesize
+    \setlength{\tabcolsep}{4pt}
+    \renewcommand{\arraystretch}{1.15}
+    \caption{Comparison of MCP benchmarks. \textbf{Eval Method} distinguishes between subjective LLM judges and objective execution verification.}
+    \label{tab:mcp_benchmarks}
+
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Benchmark} & \textbf{Scale \& Domain} & \textbf{Eval Method} & \textbf{Process Metrics} \\
+        \midrule
+
+        \textbf{MCPToolBenchPP} &
+        1,509 tasks; 6 domains (finance, maps, browser) &
+        \textbf{Hybrid} (AST match + LLM judge) &
+        Pass@k; token decomposition \\
+
+        \addlinespace
+        \textbf{MCP-Universe} &
+        231 tasks; 6 domains (finance, web, 3D) &
+        \textbf{Execution} (live API state verification) &
+        Tokens/turn; iteration count \\
+
+        \addlinespace
+        MCPMark &
+        127 tasks; 5 servers (CRUD, DB) &
+        Execution (state check) &
+        Pass$^4$ (retries); cost \\
+
+        \addlinespace
+        MCPAgentBench &
+        841 tasks; 20k+ tools (simulated) &
+        Exact match (golden tool set) &
+        Token efficiency (score/1k tok) \\
+
+        \addlinespace
+        MCP-Bench &
+        Synthesized; 28 servers (scientific) &
+        Hybrid (LLM judge + schema) &
+        Planning score (qualitative) \\
+
+        \bottomrule
+    \end{tabularx}
+
+    \vspace{2pt}
+    \footnotesize\emph{Note:} Bold rows indicate benchmarks selected for this study. ``Hybrid'' indicates a mix of deterministic checks and model-based judging.
+\end{table*}
+
+\subsection{Benchmark Framework}
+\label{sec:framework}
+
+We developed a shared serialization library (\texttt{shared\_format}) that serves as the single source of truth for all format conversions across both benchmarks. The original TRON reference implementation in JavaScript \citep{tron-format/tron-javascript_2026} was ported to Python to enable integration into the benchmark pipeline. Format conversion is applied bidirectionally at three points in the execution loop:
+
+\begin{enumerate}
+    \item \textbf{Tool schemas (input):} MCP tool definitions, originally in JSON Schema, are serialized to the target format before being presented to the LLM in the system prompt.
+    \item \textbf{Tool results (input):} Execution results returned by MCP servers are converted from JSON to the target format before inclusion in the conversation context.
+    \item \textbf{Tool calls (output):} The LLM is prompted to emit tool invocations in the target format. These are parsed back to JSON via a lenient deserializer for MCP execution.
+\end{enumerate}
+
+Critically, we decouple input and output formats. The \textit{tool format} controls what the LLM reads (schemas and results), while the tool call format controls what the LLM writes (tool invocations). This decoupling enables two experimental conditions: input-only compression (schemas and results compressed, tool calls in JSON) and full compression (all three conversion points use the same format). The input-only condition isolates the effect of reading compressed data from the additional challenge of generating it.
+
+For TRON serialization, tool schemas are serialized as a single batch to enable TRON's class definition mechanism, which compresses repeated structures by defining them once and instantiating them compactly. JSON and TOON schemas are serialized individually, as these formats do not benefit from batching.
+
+\subsection{Benchmarks}
+\label{sec:benchmarks}
+
+\subsubsection{MCPToolBenchPP}
+MCPToolBenchPP \citep{fan2025mcptoolbench} evaluates single-turn tool calling. Given a natural language query and a set of tool schemas, the LLM must produce a single tool invocation with the correct tool name and parameters. Each task is executed with 5 independent trials to enable robust pass@k estimation.
+
+Tools are embedded directly in the system prompt (\textit{prompt mode}) rather than using native function-calling APIs. This is essential for our study: native APIs handle tool schema serialization internally, making it impossible to substitute custom formats like TOON or TRON. In prompt mode, we control the exact serialization of tool schemas, results, and tool call output. The LLM's response is parsed for a \texttt{TOOL\_CALL} marker followed by a serialized tool call, which is deserialized and matched against ground truth.
+
+The benchmark comprises 1,509 tasks across six categories:
+
+\begin{table}[h]
+    \centering
+    \footnotesize
+    \caption{MCPToolBenchPP task distribution.}
+    \label{tab:benchpp_tasks}
+    \begin{tabular}{@{}lrr@{}}
+        \toprule
+        \textbf{Category} & \textbf{Tasks} & \textbf{Tools} \\
+        \midrule
+        Map              & 500 & 32 \\
+        Pay              & 310 & 6 \\
+        File System      & 241 & 11 \\
+        Browser          & 187 & 32 \\
+        Search           & 181 & 5 \\
+        Finance          & 90  & 1 \\
+        \midrule
+        \textbf{Total}   & \textbf{1,509} & \textbf{87} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{MCP-Universe}
+MCP-Universe \citep{luo2025mcpuniverse} evaluates multi-turn agentic reasoning. While MCP-Universe supports both a native function-calling mode (using the OpenAI tool-use API) and a text-based ReAct agent \citep{yao2023react}, we use the ReAct agent for the same reason as above: the native API manages tool schemas internally, preventing custom serialization. The ReAct agent embeds tool schemas as text in the prompt, giving us full control over the format. The agent iteratively reasons about the task, selects tools, executes them against live MCP servers, and incorporates results into its conversation history. Execution continues until the agent produces a final answer or reaches a maximum of 20 iterations.
+
+Each task is evaluated through execution-based verification: task-specific evaluator expressions check actual state changes (e.g., whether a financial calculation matches the expected value, whether a file was created with the correct content) rather than relying on output text comparison. This makes evaluation robust to format changes in the agent's responses.
+
+The benchmark comprises 176 tasks across five categories (web search excluded due to external API rate limits):
+
+\begin{table}[h]
+    \centering
+    \footnotesize
+    \caption{MCP-Universe task distribution.}
+    \label{tab:universe_tasks}
+    \begin{tabular}{@{}lrl@{}}
+        \toprule
+        \textbf{Category} & \textbf{Tasks} & \textbf{MCP Servers} \\
+        \midrule
+        Location Navigation  & 45 & Google Maps \\
+        Financial Analysis   & 40 & yfinance, calculator \\
+        Browser Automation   & 39 & Playwright, Chrome \\
+        Repository Mgmt      & 33 & GitHub, filesystem \\
+        3D Design            & 19 & Blender \\
+        \midrule
+        \textbf{Total}       & \textbf{176} & \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Formats Under Evaluation}
+\label{sec:formats}
+
+We evaluate three object notation formats:
+
+\begin{itemize}
+    \item \textbf{JSON} (baseline): The native MCP format. LLMs encounter JSON extensively during pre-training, making it the natural reference point.
+    \item \textbf{TOON}: Combines YAML-like indentation with CSV-style tabular arrays. Efficient for uniform, tabular structures but less effective for deeply nested data \citep{toon-format/toon_2026}.
+    \item \textbf{TRON}: Uses class definitions to eliminate structural redundancy. Defines data structures once and instantiates them compactly, achieving compression across both uniform and non-uniform data \citep{tron-format/tron-javascript_2026}.
+\end{itemize}
+
+Under \textit{full compression}, each format is applied consistently across all three conversion points (schemas, results, and tool calls). Under \textit{input-only compression}, TOON or TRON is used for schemas and results while tool calls remain in JSON. The JSON baseline is identical under both conditions.
+
+\subsection{Model Configuration}
+\label{sec:model}
+
+All experiments use Qwen3-32B \citep{qwen3_2025} accessed via OpenRouter. For MCPToolBenchPP, evaluation correctness is assessed by DeepSeek-V3 \citep{deepseek_v3_2024} serving as an LLM judge for parameter accuracy. MCP-Universe uses deterministic evaluators and does not require a judge model.
+
+MCPToolBenchPP uses default generation parameters. MCP-Universe uses temperature 0.6, a maximum of 20,000 completion tokens per call, and reasoning set to high.
+
+Token counts throughout all experiments are measured using the \texttt{cl100k\_base} tokenizer from \texttt{tiktoken} to ensure consistent cross-format comparison independent of the model's native tokenizer.
+
+\subsection{Evaluation Metrics}
+\label{sec:metrics}
+
+We employ both benchmark-specific accuracy metrics and unified token metrics across both benchmarks.
+
+\subsubsection{Token Metrics}
+Token consumption is decomposed into three format-sensitive components: \textit{schema tokens} (tool definitions presented to the LLM), \textit{tool call tokens} (LLM-generated tool invocations), and \textit{result tokens} (MCP execution results appended to context). This decomposition reveals where each format achieves its compression gains and where overhead may increase.
+
+\subsubsection{MCPToolBenchPP Metrics}
+Task quality is measured through three hierarchical pass@k metrics, each estimated over 5 independent trials per task using the unbiased estimator of \citet{chen2021evaluating}:
+
+\begin{itemize}
+    \item \textit{pass@1}: Overall correctness---the correct tool is selected with correct parameters and produces the expected output.
+    \item \textit{tool\_pass@1}: Tool selection correctness---whether the chosen tool name matches the ground truth.
+    \item \textit{parameter\_pass@1}: Parameter correctness---whether arguments match the expected values, given a correct tool selection. Assessed via AST matching with LLM-judge fallback for semantic equivalence.
+\end{itemize}
+
+\subsubsection{MCP-Universe Metrics}
+Tasks are evaluated through deterministic evaluator expressions that verify actual execution outcomes. Each task defines one or more evaluators that check state changes (e.g., whether a stock price was correctly retrieved, whether a navigation route was computed). A task passes only if all its evaluators succeed. We report the \textit{pass rate} (fraction of tasks where all evaluators pass) and the \textit{average iterations} per task as a measure of reasoning efficiency.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Token Consumption}
+
+\subsection{Execution Statistics}
+
+\subsection{Quality Impact}
+
+\section{Discussion}
+
+\section*{Conclusions}
+
+\section*{Acknowledgements}
+Anyone to thank/credit for helping your team along the way? This is the place to do it!
+
+\bibliography{bibliography}
+\end{document}
