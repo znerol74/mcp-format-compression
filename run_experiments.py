@@ -36,10 +36,14 @@ ROOT = Path(__file__).resolve().parent
 BENCHPP_DIR = ROOT / "MCPToolBenchPP"
 UNIVERSE_DIR = ROOT / "MCP-Universe"
 MCPBENCH_DIR = ROOT / "mcp-bench"
+BFCL_DIR = ROOT / "gorilla" / "berkeley-function-call-leaderboard"
+TOOLBENCH_DIR = ROOT / "StableToolBench"
 
 BENCHPP_PYTHON = BENCHPP_DIR / ".venv" / "bin" / "python3"
 UNIVERSE_PYTHON = UNIVERSE_DIR / ".venv" / "bin" / "python3"
 MCPBENCH_PYTHON = MCPBENCH_DIR / "venv" / "bin" / "python3"
+BFCL_PYTHON = BFCL_DIR / ".venv" / "bin" / "python3"
+TOOLBENCH_PYTHON = TOOLBENCH_DIR / ".venv" / "bin" / "python3"
 
 LOG_DIR = ROOT / "experiment_logs"
 
@@ -67,16 +71,37 @@ MODELS = {
 }
 
 LOCAL_MODEL = {
-    "benchpp": "qwen3-32b",
-    "universe": "qwen/qwen3-32b",
-    "mcpbench": "qwen3-30b-openwebui",
+    "benchpp": "qwen3-30b-instruct-openwebui",
+    "universe": "qwen3-30b-instruct",
+    "mcpbench": "qwen3-30b-instruct-openwebui",
+    "bfcl": "qwen3-30b-local",
+    "toolbench": "qwen3-30b-instruct",
 }
+
+# BFCL categories (non-live single-turn + multi-turn)
+BFCL_CATEGORIES_EXP1 = [
+    "simple_python", "multiple", "parallel", "parallel_multiple", "irrelevance",
+    "multi_turn_base", "multi_turn_miss_func", "multi_turn_miss_param", "multi_turn_long_context",
+]
+BFCL_CATEGORIES_EXP2 = [
+    "simple_python", "multiple", "parallel", "parallel_multiple", "irrelevance",
+]
+
+# StableToolBench test groups (solvable queries)
+TOOLBENCH_TASK_FILES = [
+    ("G1_instruction", "solvable_queries/test_instruction/G1_instruction.json"),
+    ("G2_instruction", "solvable_queries/test_instruction/G2_instruction.json"),
+    ("G3_instruction", "solvable_queries/test_instruction/G3_instruction.json"),
+]
+
+OPENWEBUI_URL = "https://openwebui.know.know-center.at/api"
+OPENWEBUI_API_KEY = os.environ.get("OPENWEBUI_API_KEY", "sk-9c8abf92c24a48289d7ead330258669e")
 
 # MCPToolBenchPP categories & input files
 BENCHPP_CATEGORIES = [
     ("finance", "./data/finance/finance_0724_single_v3.json"),
     ("pay", "./data/pay/pay_0723_single.json"),
-    ("search", "./data/search/search_0725_single_v2.json"),
+    # ("search", ...),  # Excluded: Tavily API quota exhausted (HTTP 432)
     ("file_system", "./data/file_system/filesystem_0723_single.json"),
     ("map", "./data/map/map_0717_single_multi_lang_500.json"),
     ("browser", "./data/browser/browser_0724_single_v3.json"),
@@ -85,7 +110,8 @@ BENCHPP_CATEGORIES = [
 # MCP-Universe YAML config base dir
 UNIVERSE_CONFIG_DIR = UNIVERSE_DIR / "mcpuniverse" / "benchmark" / "configs" / "mcpuniverse" / "test_full"
 UNIVERSE_CATEGORIES = [
-    "web_search", "financial_analysis", "location_navigation",
+    # "web_search",  # 0% pass rate due to SerpAPI rate limits — skipped
+    "financial_analysis", "location_navigation",
     "browser_automation", "repository_management", "3d_design",
 ]
 
@@ -106,8 +132,11 @@ LOCAL_END_HOUR = 6     # 06:00
 
 
 def in_local_window() -> bool:
-    """Check if current time is within the local LLM window (23:00-06:00)."""
-    h = datetime.now().hour
+    """Check if current time is within the local LLM window (23:00-06:00, or all day on weekends)."""
+    now = datetime.now()
+    if now.weekday() >= 5:  # Saturday=5, Sunday=6
+        return True
+    h = now.hour
     return h >= LOCAL_START_HOUR or h < LOCAL_END_HOUR
 
 
@@ -199,7 +228,8 @@ def get_universe_config_path(category, fmt):
     return UNIVERSE_CONFIG_DIR / f"{category}_{fmt}.yaml"
 
 
-def create_universe_config_variant(category, fmt, model_key, tool_call_format=None, tag=""):
+def create_universe_config_variant(category, fmt, model_key, tool_call_format=None, tag="",
+                                    use_openwebui=False):
     """Create a temporary YAML config with modified model and tool_call_format."""
     base_path = get_universe_config_path(category, fmt)
     if not base_path.exists():
@@ -214,6 +244,14 @@ def create_universe_config_variant(category, fmt, model_key, tool_call_format=No
     for doc in docs:
         if doc.get("kind") == "llm":
             doc["spec"]["config"]["model_name"] = model_name
+            if use_openwebui:
+                doc["spec"]["type"] = "openai"
+                base_url = OPENWEBUI_URL.rstrip("/")
+                if not base_url.endswith("/v1"):
+                    base_url += "/v1"
+                doc["spec"]["config"]["base_url"] = base_url
+                doc["spec"]["config"]["api_key"] = OPENWEBUI_API_KEY
+                doc["spec"]["config"]["verify_ssl"] = False
         if doc.get("kind") == "agent" and tool_call_format:
             doc["spec"]["config"]["tool_call_format"] = tool_call_format
 
@@ -294,6 +332,111 @@ def run_mcpbench(fmt, model_key, tool_call_format=None, tag=""):
     return results
 
 
+# ── BFCL (Gorilla) ─────────────────────────────────────────────────────────
+
+def run_bfcl(fmt, model_key, tool_call_format=None, tag="", categories=None):
+    """Run BFCL for given categories with given format."""
+    tc_fmt = tool_call_format or "python"
+    if categories is None:
+        categories = BFCL_CATEGORIES_EXP1
+    results = []
+
+    # Build BFCL_PROMPT_FORMAT_OVERRIDE
+    env = {}
+    if fmt != "json" or tc_fmt != "python":
+        override = f"ret_fmt={tc_fmt}&tool_call_tag=False&func_doc_fmt={fmt}&prompt_fmt=plaintext&style=classic"
+        env["BFCL_PROMPT_FORMAT_OVERRIDE"] = override
+    env["OPENWEBUI_API_KEY"] = OPENWEBUI_API_KEY
+    env["OPENWEBUI_BASE_URL"] = OPENWEBUI_URL
+
+    # Model registry key: baseline vs format-specific
+    if fmt == "json" and tc_fmt == "python":
+        bfcl_model = LOCAL_MODEL["bfcl"]
+    elif tc_fmt == "python":
+        bfcl_model = f"{LOCAL_MODEL['bfcl']}-{fmt}"
+    elif tc_fmt == fmt:
+        bfcl_model = f"{LOCAL_MODEL['bfcl']}-{fmt}-full"
+    else:
+        bfcl_model = f"{LOCAL_MODEL['bfcl']}-{fmt}-tc{tc_fmt}"
+
+    for category in categories:
+        log_name = f"bfcl_{tag}_{bfcl_model}_{category}.log"
+        log_path = str(LOG_DIR / log_name)
+
+        cmd = [
+            BFCL_PYTHON, "-m", "bfcl_eval",
+            "generate",
+            "--model", bfcl_model,
+            "--test-category", category,
+            "--num-threads", "1",
+        ]
+
+        print(f"    [bfcl] {category} fmt={fmt} tc={tc_fmt} model={bfcl_model}")
+        rc, dur = run_cmd(cmd, BFCL_DIR, log_path, env=env)
+        status = "OK" if rc == 0 else f"FAIL({rc})"
+        print(f"    [bfcl] {category} -> {status} ({dur:.0f}s)")
+        results.append({"benchmark": "bfcl", "category": category,
+                         "format": fmt, "tc_format": tc_fmt, "model": bfcl_model,
+                         "rc": rc, "duration": dur, "log": log_path})
+    return results
+
+
+def eval_bfcl(model_key, categories=None):
+    """Run BFCL evaluation for a model."""
+    if categories is None:
+        categories = BFCL_CATEGORIES_EXP1
+    cat_str = ",".join(categories)
+    log_path = str(LOG_DIR / f"bfcl_eval_{model_key}.log")
+    cmd = [BFCL_PYTHON, "-m", "bfcl_eval", "evaluate", "--model", model_key, "--test-category", cat_str]
+    print(f"    [bfcl] evaluating {model_key}")
+    rc, dur = run_cmd(cmd, BFCL_DIR, log_path)
+    print(f"    [bfcl] eval -> {'OK' if rc == 0 else 'FAIL'} ({dur:.0f}s)")
+    return rc
+
+
+# ── ToolBench ──────────────────────────────────────────────────────────────
+
+def run_toolbench(fmt, model_key, tool_call_format=None, tag=""):
+    """Run StableToolBench for all task groups with given format."""
+    tc_fmt = tool_call_format or fmt
+    results = []
+
+    for group, task_file in TOOLBENCH_TASK_FILES:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = f"results/{tag}_{fmt}_tc{tc_fmt}_{group}_{timestamp}"
+        log_name = f"toolbench_{tag}_{fmt}_tc{tc_fmt}_{group}.log"
+        log_path = str(LOG_DIR / log_name)
+
+        cmd = [
+            TOOLBENCH_PYTHON, "toolbench/inference/qa_pipeline.py",
+            "--tool_root_dir", "server/tools",
+            "--backbone_model", "openwebui",
+            "--openwebui_model", LOCAL_MODEL["toolbench"],
+            "--tool_format", fmt,
+            "--tool_call_format", tc_fmt,
+            "--method", "CoT@1",
+            "--input_query_file", task_file,
+            "--output_answer_file", output_dir,
+            "--toolbench_key", "",
+        ]
+
+        env = {
+            "PYTHONPATH": str(TOOLBENCH_DIR) + ":" + str(TOOLBENCH_DIR / "toolbench" / "inference"),
+            "SERVICE_URL": "http://localhost:8080/virtual",
+            "OPENWEBUI_API_KEY": OPENWEBUI_API_KEY,
+            "OPENWEBUI_BASE_URL": OPENWEBUI_URL,
+        }
+
+        print(f"    [toolbench] {group} fmt={fmt} tc={tc_fmt}")
+        rc, dur = run_cmd(cmd, TOOLBENCH_DIR, log_path, env=env)
+        status = "OK" if rc == 0 else f"FAIL({rc})"
+        print(f"    [toolbench] {group} -> {status} ({dur:.0f}s)")
+        results.append({"benchmark": "toolbench", "category": group,
+                         "format": fmt, "tc_format": tc_fmt, "model": model_key,
+                         "rc": rc, "duration": dur, "log": log_path})
+    return results
+
+
 # ── Experiment orchestration ────────────────────────────────────────────────
 
 def run_experiment(exp_name, model_key="qwen3-32b", formats=None, local=False, benchmarks=None):
@@ -301,7 +444,7 @@ def run_experiment(exp_name, model_key="qwen3-32b", formats=None, local=False, b
     if formats is None:
         formats = FORMATS
     if benchmarks is None:
-        benchmarks = ["benchpp", "universe", "mcpbench"]
+        benchmarks = ["benchpp", "universe", "mcpbench", "bfcl", "toolbench"]
 
     all_results = []
     tag = exp_name
@@ -338,6 +481,11 @@ def run_experiment(exp_name, model_key="qwen3-32b", formats=None, local=False, b
                 all_results.extend(run_universe(fmt, model_key, tool_call_format=tc, tag=tag))
             if "mcpbench" in benchmarks:
                 all_results.extend(run_mcpbench(fmt, model_key, tool_call_format=tc, tag=tag))
+            if "bfcl" in benchmarks:
+                all_results.extend(run_bfcl(fmt, model_key, tool_call_format="python", tag=tag,
+                                            categories=BFCL_CATEGORIES_EXP1))
+            if "toolbench" in benchmarks:
+                all_results.extend(run_toolbench(fmt, model_key, tool_call_format="json", tag=tag))
 
         # Also run JSON baseline
         print(f"\n  Baseline: json (tool_call: json)")
@@ -347,6 +495,11 @@ def run_experiment(exp_name, model_key="qwen3-32b", formats=None, local=False, b
             all_results.extend(run_universe("json", model_key, tool_call_format="json", tag=tag))
         if "mcpbench" in benchmarks:
             all_results.extend(run_mcpbench("json", model_key, tool_call_format="json", tag=tag))
+        if "bfcl" in benchmarks:
+            all_results.extend(run_bfcl("json", model_key, tool_call_format="python", tag=tag,
+                                        categories=BFCL_CATEGORIES_EXP1))
+        if "toolbench" in benchmarks:
+            all_results.extend(run_toolbench("json", model_key, tool_call_format="json", tag=tag))
 
     elif exp_name == "exp2":
         print(f"\n{'='*60}")
@@ -361,6 +514,11 @@ def run_experiment(exp_name, model_key="qwen3-32b", formats=None, local=False, b
                 all_results.extend(run_universe(fmt, model_key, tool_call_format=fmt, tag=tag))
             if "mcpbench" in benchmarks:
                 all_results.extend(run_mcpbench(fmt, model_key, tool_call_format=fmt, tag=tag))
+            if "bfcl" in benchmarks:
+                all_results.extend(run_bfcl(fmt, model_key, tool_call_format=fmt, tag=tag,
+                                            categories=BFCL_CATEGORIES_EXP2))
+            if "toolbench" in benchmarks:
+                all_results.extend(run_toolbench(fmt, model_key, tool_call_format=fmt, tag=tag))
 
     elif exp_name == "exp3":
         print(f"\n{'='*60}")
@@ -376,36 +534,97 @@ def run_experiment(exp_name, model_key="qwen3-32b", formats=None, local=False, b
                     all_results.extend(run_universe(fmt, mk, tool_call_format=fmt, tag=tag))
                 if "mcpbench" in benchmarks:
                     all_results.extend(run_mcpbench(fmt, mk, tool_call_format=fmt, tag=tag))
+                if "bfcl" in benchmarks:
+                    all_results.extend(run_bfcl(fmt, mk, tool_call_format=fmt, tag=tag,
+                                                categories=BFCL_CATEGORIES_EXP2))
+                if "toolbench" in benchmarks:
+                    all_results.extend(run_toolbench(fmt, mk, tool_call_format=fmt, tag=tag))
 
     return all_results
 
 
-def run_local_experiment(model_key="qwen3-32b", formats=None):
-    """Run experiments with local LLM (time-windowed 23:00-06:00)."""
+LOCAL_PROGRESS_FILE = LOG_DIR / "local_progress.json"
+
+
+def _load_local_progress():
+    """Load the set of completed (benchmark, format, category) tuples."""
+    if LOCAL_PROGRESS_FILE.exists():
+        with open(LOCAL_PROGRESS_FILE) as f:
+            entries = json.load(f)
+        return {tuple(e) for e in entries}
+    return set()
+
+
+def _save_local_progress(done):
+    """Persist the set of completed (benchmark, format, category) tuples."""
+    os.makedirs(LOCAL_PROGRESS_FILE.parent, exist_ok=True)
+    with open(LOCAL_PROGRESS_FILE, "w") as f:
+        json.dump([list(e) for e in sorted(done)], f, indent=2)
+
+
+def run_local_experiment(model_key="qwen3-32b", formats=None, benchmarks=None):
+    """Run experiments with local LLM (time-windowed 23:00-06:00).
+
+    Sleeps between windows and resumes across nights using a progress file.
+    """
     if formats is None:
         formats = FORMATS
+    if benchmarks is None:
+        benchmarks = ["benchpp", "universe", "bfcl", "toolbench"]
 
-    print(f"\n{'='*60}")
-    print(f"Local LLM Experiment (time window: {LOCAL_START_HOUR}:00-{LOCAL_END_HOUR:02d}:00)")
-    print(f"{'='*60}")
-
-    wait_for_local_window()
+    done = _load_local_progress()
     tag = "local"
     all_results = []
 
+    # Build the full work queue: list of (benchmark, format, category, extra)
+    work = []
     for fmt in formats:
-        if not check_local_window_or_stop():
-            print(f"\n  TIME WINDOW CLOSED — stopping local experiments")
-            break
+        if "benchpp" in benchmarks:
+            for category, input_file in BENCHPP_CATEGORIES:
+                work.append(("benchpp", fmt, category, input_file))
+        if "universe" in benchmarks:
+            for category in UNIVERSE_CATEGORIES:
+                work.append(("universe", fmt, category, None))
+        if "bfcl" in benchmarks:
+            for category in BFCL_CATEGORIES_EXP2:
+                work.append(("bfcl", fmt, category, None))
+        if "toolbench" in benchmarks:
+            for group, task_file in TOOLBENCH_TASK_FILES:
+                work.append(("toolbench", fmt, group, task_file))
 
-        print(f"\n  Format: {fmt}")
-        # Use local model identifiers
-        log_name = f"local_{fmt}_benchpp.log"
-        # MCPToolBenchPP with local LLM
-        for category, input_file in BENCHPP_CATEGORIES:
-            if not check_local_window_or_stop():
-                break
+    remaining = [(b, f, c, d) for b, f, c, d in work if (b, f, c) not in done]
+    total = len(work)
+    completed = total - len(remaining)
+
+    print(f"\n{'='*60}")
+    print(f"Local LLM Experiment (time window: {LOCAL_START_HOUR}:00-{LOCAL_END_HOUR:02d}:00)")
+    print(f"Progress: {completed}/{total} done, {len(remaining)} remaining")
+    print(f"{'='*60}")
+
+    if not remaining:
+        print("  All local experiments already completed!")
+        return all_results
+
+    for bench, fmt, category, extra in remaining:
+        # Time window check disabled — running continuously
+        # if not in_local_window():
+        #     now = datetime.now()
+        #     if now.hour < LOCAL_START_HOUR:
+        #         target = now.replace(hour=LOCAL_START_HOUR, minute=0, second=0, microsecond=0)
+        #     else:
+        #         target = (now + timedelta(days=1)).replace(
+        #             hour=LOCAL_START_HOUR, minute=0, second=0, microsecond=0)
+        #     wait_secs = (target - now).total_seconds()
+        #     completed = len(done)
+        #     print(f"\n  [{completed}/{total}] Window closed. "
+        #           f"Sleeping until {target.strftime('%Y-%m-%d %H:%M')} ({wait_secs/3600:.1f}h)")
+        #     time.sleep(wait_secs)
+
+        if bench == "benchpp":
+            input_file = extra
             log_path = str(LOG_DIR / f"local_benchpp_{fmt}_{category}.log")
+            # Use fixed log_file name so interrupted runs resume from where they left off
+            benchpp_log_file = f"local_{category}_{fmt}.json"
             cmd = [
                 BENCHPP_PYTHON, "run.py",
                 "--stage", "tool_call",
@@ -418,52 +637,104 @@ def run_local_experiment(model_key="qwen3-32b", formats=None):
                 "--llm_as_judge_model", JUDGE_MODEL_BENCHPP,
                 "--pass_k", "1",
                 "--evaluation_trial_per_task", "5",
+                "--log_file", benchpp_log_file,
             ]
-            print(f"    [local/benchpp] {category} fmt={fmt}")
+            print(f"    [local/benchpp] {category} fmt={fmt} "
+                  f"({len(done)+1}/{total})")
             rc, dur = run_cmd(cmd, BENCHPP_DIR, log_path)
             all_results.append({"benchmark": "benchpp", "category": category,
                                  "format": fmt, "model": "local", "rc": rc,
                                  "duration": dur, "log": log_path})
 
-        # mcp-bench with local LLM
-        for tasks_file in MCPBENCH_TASK_FILES:
-            if not check_local_window_or_stop():
-                break
-            task_label = Path(tasks_file).stem.replace("mcpbench_tasks_", "")
-            log_path = str(LOG_DIR / f"local_mcpbench_{fmt}_{task_label}.log")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            cmd = [
-                MCPBENCH_PYTHON, "benchmark/runner.py",
-                "--models", LOCAL_MODEL["mcpbench"],
-                "--tasks-file", tasks_file,
-                "--compression-format", fmt,
-                "--tool-call-format", fmt,
-                "--output", f"results/gaia/local_{fmt}_{task_label}_{timestamp}.json",
-                "--skip-judge",
-            ]
-            print(f"    [local/mcpbench] {task_label} fmt={fmt}")
-            rc, dur = run_cmd(cmd, MCPBENCH_DIR, log_path)
-            all_results.append({"benchmark": "mcpbench", "category": task_label,
-                                 "format": fmt, "model": "local", "rc": rc,
-                                 "duration": dur, "log": log_path})
-
-        # MCP-Universe with local LLM
-        for category in UNIVERSE_CATEGORIES:
-            if not check_local_window_or_stop():
-                break
+        elif bench == "universe":
             config_path = create_universe_config_variant(
-                category, fmt, model_key, tool_call_format=fmt, tag="local"
+                category, fmt, LOCAL_MODEL["universe"],
+                tool_call_format=fmt, tag="local", use_openwebui=True
             )
             if config_path is None:
+                done.add((bench, fmt, category))
+                _save_local_progress(done)
                 continue
             log_path = str(LOG_DIR / f"local_universe_{fmt}_{category}.log")
-            cmd = [UNIVERSE_PYTHON, "run_full_test.py", str(config_path)]
-            print(f"    [local/universe] {category} fmt={fmt}")
-            rc, dur = run_cmd(cmd, UNIVERSE_DIR, log_path)
+            venv_bin = str(UNIVERSE_DIR / ".venv" / "bin")
+            env = {"PATH": venv_bin + ":" + os.environ.get("PATH", "")}
+            cmd = [UNIVERSE_PYTHON, "run_full_test.py", str(config_path), "--resume"]
+            print(f"    [local/universe] {category} fmt={fmt} "
+                  f"({len(done)+1}/{total})")
+            rc, dur = run_cmd(cmd, UNIVERSE_DIR, log_path, env=env)
             all_results.append({"benchmark": "universe", "category": category,
                                  "format": fmt, "model": "local", "rc": rc,
                                  "duration": dur, "log": log_path})
 
+        elif bench == "bfcl":
+            log_path = str(LOG_DIR / f"local_bfcl_{fmt}_{category}.log")
+            bfcl_env = {
+                "OPENWEBUI_API_KEY": OPENWEBUI_API_KEY,
+                "OPENWEBUI_BASE_URL": OPENWEBUI_URL,
+            }
+            if fmt != "json":
+                bfcl_env["BFCL_PROMPT_FORMAT_OVERRIDE"] = (
+                    f"ret_fmt={fmt}&tool_call_tag=False&func_doc_fmt={fmt}"
+                    f"&prompt_fmt=plaintext&style=classic"
+                )
+            bfcl_model = LOCAL_MODEL["bfcl"]
+            if fmt != "json":
+                bfcl_model = f"{bfcl_model}-{fmt}-full"
+            cmd = [
+                BFCL_PYTHON, "-m", "bfcl_eval",
+                "generate",
+                "--model", bfcl_model,
+                "--test-category", category,
+                "--num-threads", "1",
+            ]
+            print(f"    [local/bfcl] {category} fmt={fmt} "
+                  f"({len(done)+1}/{total})")
+            rc, dur = run_cmd(cmd, BFCL_DIR, log_path, env=bfcl_env)
+            all_results.append({"benchmark": "bfcl", "category": category,
+                                 "format": fmt, "model": "local", "rc": rc,
+                                 "duration": dur, "log": log_path})
+
+        elif bench == "toolbench":
+            task_file = extra
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_dir = f"results/local_{fmt}_{category}_{timestamp}"
+            log_path = str(LOG_DIR / f"local_toolbench_{fmt}_{category}.log")
+            cmd = [
+                TOOLBENCH_PYTHON, "toolbench/inference/qa_pipeline.py",
+                "--tool_root_dir", "server/tools",
+                "--backbone_model", "openwebui",
+                "--openwebui_model", LOCAL_MODEL["toolbench"],
+                "--tool_format", fmt,
+                "--tool_call_format", fmt,
+                "--method", "CoT@1",
+                "--input_query_file", task_file,
+                "--output_answer_file", output_dir,
+                "--toolbench_key", "",
+            ]
+            tb_env = {
+                "PYTHONPATH": str(TOOLBENCH_DIR) + ":" + str(TOOLBENCH_DIR / "toolbench" / "inference"),
+                "SERVICE_URL": "http://localhost:8080/virtual",
+                "OPENWEBUI_API_KEY": OPENWEBUI_API_KEY,
+                "OPENWEBUI_BASE_URL": OPENWEBUI_URL,
+            }
+            print(f"    [local/toolbench] {category} fmt={fmt} "
+                  f"({len(done)+1}/{total})")
+            rc, dur = run_cmd(cmd, TOOLBENCH_DIR, log_path, env=tb_env)
+            all_results.append({"benchmark": "toolbench", "category": category,
+                                 "format": fmt, "model": "local", "rc": rc,
+                                 "duration": dur, "log": log_path})
+
+        # Only mark done on success; on failure/interrupt, leave in queue to resume
+        rc = all_results[-1]["rc"] if all_results else -1
+        dur_str = f"{all_results[-1]['duration']:.0f}s" if all_results else "?"
+        if rc == 0:
+            print(f"    -> OK ({dur_str})")
+            done.add((bench, fmt, category))
+            _save_local_progress(done)
+        else:
+            print(f"    -> FAIL rc={rc} ({dur_str}) — will retry and resume next window")
+
+    print(f"\n  Local experiments complete: {len(done)}/{total}")
     return all_results
 
 
@@ -474,9 +745,9 @@ def main():
         description="Unified experiment runner for MCP format compression paper"
     )
     parser.add_argument(
-        "--exp", nargs="+", required=True,
+        "--exp", nargs="+", default=[],
         choices=["exp0", "exp1", "exp2", "exp3", "all"],
-        help="Experiments to run"
+        help="Experiments to run (required unless --local is used)"
     )
     parser.add_argument(
         "--model", default="qwen3-32b",
@@ -492,12 +763,15 @@ def main():
         help="Include local LLM run (time-windowed 23:00-06:00)"
     )
     parser.add_argument(
-        "--benchmark", nargs="+", default=["benchpp", "universe", "mcpbench"],
-        choices=["benchpp", "universe", "mcpbench"],
-        help="Which benchmarks to run (default: all three)"
+        "--benchmark", nargs="+", default=["benchpp", "universe", "mcpbench", "bfcl", "toolbench"],
+        choices=["benchpp", "universe", "mcpbench", "bfcl", "toolbench"],
+        help="Which benchmarks to run (default: all five)"
     )
 
     args = parser.parse_args()
+
+    if not args.exp and not args.local:
+        parser.error("--exp is required unless --local is used")
 
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -510,6 +784,8 @@ def main():
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Experiments: {', '.join(experiments)}")
     print(f"Model: {args.model}")
+    if args.local:
+        print(f"Local model: {LOCAL_MODEL}")
     print(f"Formats: {', '.join(args.formats)}")
     print(f"Benchmarks: {', '.join(args.benchmark)}")
     print(f"Local LLM: {'yes' if args.local else 'no'}")
@@ -522,7 +798,8 @@ def main():
         all_results.extend(results)
 
     if args.local:
-        local_results = run_local_experiment(model_key=args.model, formats=args.formats)
+        local_results = run_local_experiment(
+            model_key=args.model, formats=args.formats, benchmarks=args.benchmark)
         all_results.extend(local_results)
 
     # Save results summary
