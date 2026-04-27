@@ -80,3 +80,61 @@ def deserialize_lenient(text: str, fmt: ToolFormat) -> Any:
         except Exception as e:
             logger.error("Failed to parse as %s or JSON: %s", fmt.value, e)
             return {}
+
+
+class FormatViolation(ValueError):
+    """Raised when text cannot be parsed as the requested format.
+
+    Distinct from generic ValueError so call sites can count violations
+    separately from other parse errors.
+    """
+
+    def __init__(self, fmt: ToolFormat, original_exc: Exception, snippet: str):
+        self.fmt = fmt
+        self.original_exc = original_exc
+        self.snippet = snippet
+        super().__init__(
+            f"format violation: expected {fmt.value}: "
+            f"{type(original_exc).__name__}: {original_exc} | "
+            f"snippet={snippet[:200]!r}"
+        )
+
+
+def _looks_like_json_or_tron(text: str) -> bool:
+    """Lightweight shape check: JSON/TRON tool-call payloads start with '{' or '['."""
+    stripped = text.lstrip()
+    return stripped.startswith(("{", "["))
+
+
+def deserialize_strict(text: str, fmt: ToolFormat) -> Any:
+    """Parse text as the given format. No JSON fallback, no empty-dict fallback.
+
+    Use this when a parse failure should be surfaced as a real failure (e.g.
+    tool-call output that the model emitted in the wrong format). Pair with
+    a try/except FormatViolation block to count the violation.
+
+    Includes a lightweight shape check: TOON's parser is permissive and will
+    accept JSON-shaped text by interpreting '{...}' as a degenerate string key.
+    If the caller asks for TOON and the text starts with '{' or '[' (a JSON
+    or TRON tool-call payload), treat that as a format violation.
+
+    Args:
+        text: The string to parse.
+        fmt: Expected format of the input string.
+
+    Returns:
+        Parsed Python object.
+
+    Raises:
+        FormatViolation: if text is not valid in the given format.
+    """
+    if fmt == ToolFormat.TOON and _looks_like_json_or_tron(text):
+        raise FormatViolation(
+            fmt,
+            ValueError("text starts with '{' or '['; looks like JSON/TRON, not TOON"),
+            text,
+        )
+    try:
+        return deserialize(text, fmt)
+    except Exception as e:
+        raise FormatViolation(fmt, e, text) from e

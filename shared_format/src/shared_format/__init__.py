@@ -11,6 +11,8 @@ from shared_format.converter import (
     serialize,
     deserialize,
     deserialize_lenient,
+    deserialize_strict,
+    FormatViolation,
 )
 from shared_format.prompt_snippets import (
     get_format_name,
@@ -27,6 +29,8 @@ __all__ = [
     "serialize",
     "deserialize",
     "deserialize_lenient",
+    "deserialize_strict",
+    "FormatViolation",
     "get_format_name",
     "get_format_explanation",
     "get_format_intro",

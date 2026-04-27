@@ -84,6 +84,7 @@ def collect_benchpp_results(log_dir=None, exp2_only=False, model_filter="qwen3-3
             if date_match and int(date_match.group(1)) < 20260302:
                 continue
 
+        format_violations = run_info.get("format_violations", 0)
         result = {
             "benchmark": "MCPToolBenchPP",
             "category": category,
@@ -95,6 +96,8 @@ def collect_benchpp_results(log_dir=None, exp2_only=False, model_filter="qwen3-3
             "param_pass_at_1": m.get("parameter_pass@1", 0),
             "num_trials": m.get("num_trials_total", 0),
             "num_passed": m.get("num_passed_total", 0),
+            "format_violations": format_violations,
+            "format_violation_rate": (format_violations / m.get("num_trials_total", 1)) if m.get("num_trials_total") else 0.0,
             "total_api_prompt_tokens": token_usage.get("total_api_prompt_tokens", 0),
             "total_api_completion_tokens": token_usage.get("total_api_completion_tokens", 0),
             "total_api_tokens": token_usage.get("total_api_total_tokens", 0),
@@ -160,6 +163,8 @@ def parse_universe_report(report_path):
             schema_tok = int(parts[10])
             call_tok = int(parts[11])
             result_tok = int(parts[12])
+            # 14th column = format_violations (post-fix Universe runs)
+            format_violations = int(parts[13]) if len(parts) >= 14 else 0
 
             tasks.append({
                 "name": task_name,
@@ -174,6 +179,7 @@ def parse_universe_report(report_path):
                 "schema_tokens": schema_tok,
                 "call_tokens": call_tok,
                 "result_tokens": result_tok,
+                "format_violations": format_violations,
             })
         except (ValueError, IndexError):
             continue
@@ -186,6 +192,9 @@ def parse_universe_report(report_path):
     tasks_passed = sum(1 for t in tasks if t["not_passed"] == 0 and t["passed"] > 0)
     pass_rate = tasks_passed / total_tasks if total_tasks > 0 else 0
 
+    # Optional 14th column = format_violations (post-fix Universe runs add it)
+    format_violations = sum(t.get("format_violations", 0) for t in tasks)
+    total_llm_calls = sum(t["llm_calls"] for t in tasks)
     return {
         "benchmark": "MCP-Universe",
         "category": category,
@@ -194,8 +203,8 @@ def parse_universe_report(report_path):
         "num_tasks": total_tasks,
         "passed": tasks_passed,
         "pass_rate": pass_rate,
-        "total_llm_calls": sum(t["llm_calls"] for t in tasks),
-        "avg_llm_calls": sum(t["llm_calls"] for t in tasks) / total_tasks,
+        "total_llm_calls": total_llm_calls,
+        "avg_llm_calls": total_llm_calls / total_tasks,
         "total_prompt_tokens": sum(t["prompt_tokens"] for t in tasks),
         "total_completion_tokens": sum(t["completion_tokens"] for t in tasks),
         "total_api_tokens": sum(t["total_tokens"] for t in tasks),
@@ -203,6 +212,8 @@ def parse_universe_report(report_path):
         "total_schema_tokens": sum(t["schema_tokens"] for t in tasks),
         "total_tc_output_tokens": sum(t["call_tokens"] for t in tasks),
         "total_result_tokens": sum(t["result_tokens"] for t in tasks),
+        "format_violations": format_violations,
+        "format_violation_rate": (format_violations / total_llm_calls) if total_llm_calls else 0.0,
         "tasks": tasks,
         "source_file": str(report_path),
     }
